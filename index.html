@@ -351,6 +351,24 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
+
+  /* ---------- 顶部菜单 ---------- */
+  .topnav {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 5;
+    display: flex; gap: 4px; padding: 5px;
+    border-radius: 999px;
+    background: rgba(40, 20, 60, .45);
+    border: 1px solid rgba(255, 190, 210, .3);
+    backdrop-filter: blur(8px);
+  }
+  .topnav a {
+    font-size: 13px; color: var(--ink); text-decoration: none;
+    padding: 7px 16px; border-radius: 999px;
+    white-space: nowrap;
+  }
+  .topnav a:hover { background: rgba(255, 150, 180, .18); }
+  .topnav a.on { background: var(--lipstick); box-shadow: 0 0 14px rgba(214, 38, 95, .5); }
 </style>
 </head>
 <body>
@@ -362,6 +380,8 @@
   <div class="haze"></div>
 </div>
 <div class="grain" aria-hidden="true"></div>
+
+<nav class="topnav"><a class="on" href="index.html">🎚 我的项目</a><a href="library.html">📖 读书仓库</a></nav>
 
 <main class="wrap">
   <header class="hero">

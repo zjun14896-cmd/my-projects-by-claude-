@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>读书仓库</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;900&family=Space+Mono:wght@400;700&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+<style>
+  /* 和「我的项目」同一片夜空；书架上的每本书是一张唱片封套 */
+  :root {
+    --night-1: #23215e;
+    --night-2: #3d3a9e;
+    --dusk: #6b3f8f;
+    --plum: #4a2552;
+    --ember: #ff6a3d;
+    --ember-soft: #ff9a6b;
+    --rose: #f4b6c8;
+    --lipstick: #d6265f;
+    --panel-line: rgba(255, 210, 225, 0.22);
+    --ink: #fff2f6;
+    --ink-dim: #d9c2dd;
+    --mono: "Space Mono", ui-monospace, monospace;
+    --display: "ZCOOL KuaiLe", "Noto Sans SC", sans-serif;
+    --serif: "Noto Serif SC", "Songti SC", serif;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    font-family: "Noto Sans SC", system-ui, sans-serif;
+    color: var(--ink);
+    background: #1c1a4d;
+    overflow-x: hidden;
+  }
+
+  /* ---------- 天空 ---------- */
+  .sky {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    background: linear-gradient(180deg, var(--night-1) 0%, var(--night-2) 28%, var(--dusk) 58%, var(--plum) 82%, #2a1630 100%);
+  }
+  .star {
+    position: absolute; border-radius: 50%; background: #fff;
+    animation: twinkle var(--d, 4s) ease-in-out infinite; animation-delay: var(--delay, 0s);
+  }
+  @keyframes twinkle { 0%, 100% { opacity: .15; } 50% { opacity: .95; } }
+  .moon {
+    position: absolute; top: 9vh; right: 14%;
+    width: 22px; height: 22px; border-radius: 50%;
+    box-shadow: -5px 3px 0 0 #ffd9cf;
+    transform: rotate(-20deg);
+    filter: drop-shadow(0 0 6px rgba(255, 210, 200, .7));
+  }
+  .cloud {
+    position: absolute; left: 50%; top: 14vh;
+    width: min(900px, 140vw); height: 260px;
+    transform: translateX(-50%); filter: blur(30px); opacity: .7;
+  }
+  .cloud span {
+    position: absolute; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #ffb27a 0%, var(--ember) 45%, rgba(214, 38, 95, 0) 75%);
+  }
+  .cloud span:nth-child(1) { left: 8%;  top: 60px; width: 260px; height: 180px; }
+  .cloud span:nth-child(2) { left: 30%; top: 10px; width: 300px; height: 220px; }
+  .cloud span:nth-child(3) { left: 58%; top: 40px; width: 280px; height: 200px; }
+  .grain {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .09; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- 菜单 ---------- */
+  .topnav {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 5;
+    display: flex; gap: 4px; padding: 5px; border-radius: 999px;
+    background: rgba(40, 20, 60, .45); border: 1px solid rgba(255, 190, 210, .3);
+    backdrop-filter: blur(8px);
+  }
+  .topnav a {
+    font-size: 13px; color: var(--ink); text-decoration: none;
+    padding: 7px 16px; border-radius: 999px; white-space: nowrap;
+  }
+  .topnav a:hover { background: rgba(255, 150, 180, .18); }
+  .topnav a.on { background: var(--lipstick); box-shadow: 0 0 14px rgba(214, 38, 95, .5); }
+
+  /* ---------- 布局 ---------- */
+  .wrap { position: relative; z-index: 2; max-width: 1080px; margin: 0 auto; padding: 0 20px 80px; }
+
+  header.hero { padding: 130px 0 40px; text-align: center; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .3em; color: var(--rose);
+  }
+  h1 {
+    font-family: var(--display); font-weight: 400;
+    font-size: clamp(42px, 8vw, 88px); line-height: 1.1; margin: 16px 0 14px;
+    color: #ffe9ef;
+    text-shadow: 0 0 30px rgba(255, 120, 90, .55), 0 4px 0 rgba(120, 30, 70, .35);
+    text-wrap: balance;
+  }
+  .tagline { max-width: 520px; margin: 0 auto; color: var(--ink-dim); line-height: 1.9; font-size: 15px; }
+
+  .panel {
+    border-radius: 22px; padding: 26px;
+    background: linear-gradient(160deg, rgba(240, 170, 195, .22), rgba(150, 80, 140, .14));
+    border: 1px solid var(--panel-line);
+    box-shadow: 0 30px 80px rgba(20, 8, 40, .45), inset 0 1px 0 rgba(255, 255, 255, .15);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .panel-head {
+    display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center;
+    padding-bottom: 18px; border-bottom: 1px dashed var(--panel-line);
+  }
+  .panel-head h2 { font-family: var(--display); font-weight: 400; font-size: 28px; }
+  .panel-head h2 small { font-family: var(--mono); font-size: 11px; letter-spacing: .25em; color: var(--rose); margin-left: 10px; vertical-align: middle; }
+  .count { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 18px 0 4px; }
+  .filters button {
+    font-family: inherit; font-size: 13px; color: var(--ink);
+    padding: 7px 14px; border-radius: 10px;
+    border: 1px solid rgba(255, 200, 215, .3); background: rgba(40, 20, 50, .35);
+    cursor: pointer; box-shadow: 0 3px 0 rgba(20, 5, 30, .5);
+  }
+  .filters button:hover { background: rgba(255, 150, 180, .18); }
+  .filters button.on { background: var(--lipstick); border-color: #ff7aa0; box-shadow: 0 3px 0 #7e1238, 0 0 18px rgba(214, 38, 95, .5); }
+  .filters button:focus-visible, .open:focus-visible, .copy:focus-visible, .topnav a:focus-visible { outline: 2px solid var(--ember-soft); outline-offset: 2px; }
+
+  /* ---------- 书 ---------- */
+  .shelf {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 22px; margin-top: 20px;
+  }
+  .book {
+    display: flex; flex-direction: column;
+    border-radius: 16px; overflow: hidden;
+    background: rgba(35, 18, 55, .6);
+    border: 1px solid rgba(255, 190, 210, .18);
+    transition: transform .25s, box-shadow .25s, border-color .25s;
+  }
+  .book:hover { transform: translateY(-4px); border-color: rgba(255, 170, 195, .5); box-shadow: 0 16px 40px rgba(20, 5, 40, .5); }
+
+  /* 封面：书脊 + 色块 + 竖排书名 */
+  .cover {
+    position: relative; aspect-ratio: 4 / 3; max-width: 100%;
+    background: linear-gradient(150deg, var(--c1), var(--c2));
+    display: flex; align-items: stretch; overflow: hidden;
+  }
+  .cover::before {           /* 书脊 */
+    content: ""; width: 16px; flex: none;
+    background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(255,255,255,.12) 60%, rgba(0,0,0,.2));
+  }
+  .cover::after {            /* 光晕 */
+    content: ""; position: absolute; right: -30px; top: -30px; width: 160px; height: 160px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 230, 220, .45), transparent 65%);
+  }
+  .cover-inner {
+    position: relative; z-index: 1; flex: 1; min-width: 0;
+    display: flex; justify-content: space-between; padding: 16px 16px 14px 14px;
+  }
+  .cover-title {
+    font-family: var(--serif); font-weight: 900;
+    writing-mode: vertical-rl; font-size: 24px; letter-spacing: .12em; line-height: 1.25;
+    color: #fff7f2; text-shadow: 0 2px 10px rgba(40, 10, 40, .35);
+    max-height: 100%; overflow: hidden;
+  }
+  .cover-meta { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; text-align: right; }
+  .cover-no { font-family: var(--mono); font-size: 11px; letter-spacing: .2em; color: rgba(255, 245, 240, .85); }
+  .cover-author { font-size: 12px; color: rgba(255, 245, 240, .9); max-width: 8em; line-height: 1.5; }
+
+  .book-body { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px 18px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .cat { font-size: 12px; color: #ffd7e2; padding: 3px 9px; border-radius: 999px; background: rgba(244, 182, 200, .12); }
+  .status { font-family: var(--mono); font-size: 11px; padding: 3px 9px; border-radius: 6px; color: var(--sc); border: 1px solid currentColor; }
+  .book h3 { font-size: 17px; line-height: 1.45; text-wrap: balance; }
+  .book .author { font-size: 13px; color: var(--ink-dim); }
+  .book .note { font-size: 13px; color: var(--ink-dim); line-height: 1.7; }
+
+  .file {
+    margin-top: auto; padding-top: 12px; border-top: 1px dashed rgba(255, 200, 215, .18);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .fname {
+    font-family: var(--mono); font-size: 11px; color: rgba(255, 220, 230, .7);
+    word-break: break-all; line-height: 1.6;
+  }
+  .actions { display: flex; gap: 8px; }
+  .open, .copy {
+    font-family: inherit; font-size: 13px; text-decoration: none; cursor: pointer;
+    padding: 8px 14px; border-radius: 10px; border: 1px solid transparent;
+  }
+  .open { flex: 1; text-align: center; color: #fff; background: var(--lipstick); box-shadow: 0 3px 0 #7e1238; }
+  .open:hover { background: #e63a72; }
+  .copy { color: var(--ink); background: rgba(40, 20, 50, .45); border-color: rgba(255, 200, 215, .3); }
+
+  /* ---------- 放书提示 ---------- */
+  .howto {
+    margin-top: 26px; padding: 18px 20px; border-radius: 14px;
+    background: rgba(30, 15, 45, .5); border: 1px dashed rgba(255, 190, 210, .35);
+    font-size: 14px; line-height: 1.9; color: var(--ink-dim);
+  }
+  .howto b { color: var(--ink); }
+  .howto code { font-family: var(--mono); font-size: 12px; color: var(--ember-soft); background: rgba(255, 255, 255, .06); padding: 1px 6px; border-radius: 4px; }
+
+  footer { margin-top: 60px; text-align: center; font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: rgba(255, 220, 230, .55); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    z-index: 10; padding: 10px 18px; border-radius: 999px; font-size: 13px;
+    background: rgba(40, 20, 60, .9); border: 1px solid rgba(255, 190, 210, .4);
+  }
+
+  @media (max-width: 600px) {
+    .panel { padding: 18px; }
+    header.hero { padding-top: 100px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="sky" aria-hidden="true">
+  <div id="stars"></div>
+  <div class="moon"></div>
+  <div class="cloud"><span></span><span></span><span></span></div>
+</div>
+<div class="grain" aria-hidden="true"></div>
+
+<nav class="topnav"><a href="index.html">🎚 我的项目</a><a class="on" href="library.html">📖 读书仓库</a></nav>
+
+<main class="wrap">
+  <header class="hero">
+    <div class="eyebrow">LIBRARY · 艺术学考研书架</div>
+    <h1>读书仓库</h1>
+    <p class="tagline">考研路上要啃的书都放在这里。点「打开」直接阅读 PDF。</p>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>BOOKSHELF <small>// READING</small></h2>
+      <div class="count" id="count"></div>
+    </div>
+    <div class="filters" id="filters"></div>
+    <div class="shelf" id="shelf"></div>
+
+    <div class="howto">
+      <b>怎么放书：</b>把 PDF 拖进和这个网页同一层的 <code>books</code> 文件夹，文件名和卡片下方灰色那行保持一致，点「打开」就能读。<br>
+      如果打不开，多半是文件名差了一个字或符号：点「复制文件名」，再把 PDF 重命名成复制的名字即可。
+    </div>
+  </section>
+
+  <footer>KEEP READING · 慢慢读</footer>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+  /* ============================================================
+     在这里编辑你的书单 —— 新增一本书就复制一段 { ... }
+     file:   books 文件夹里 PDF 的文件名（必须一模一样）
+     status: "想读" | "在读" | "读完"
+     ============================================================ */
+  const books = [
+    {
+      title: "策展简史",
+      author: "汉斯·乌尔里希·奥布里斯特",
+      category: "策展",
+      status: "想读",
+      note: "通过对策展前辈的访谈，梳理现当代策展的来龙去脉。",
+      file: "策展简史_汉斯·乌尔里希·奥布里斯特.pdf",
+      colors: ["#ff6a3d", "#b8306a"]
+    },
+    {
+      title: "艺术哲学",
+      author: "王德峰",
+      category: "艺术理论",
+      status: "想读",
+      note: "从哲学角度理解艺术的本质，打牢理论基础。",
+      file: "艺术哲学_王德峰.pdf",
+      colors: ["#6b3f8f", "#2c2a7a"]
+    },
+    {
+      title: "中外美术简史",
+      author: "贺西林 等",
+      category: "美术史",
+      status: "想读",
+      note: "中外美术史的脉络总览，适合做第一轮通读。",
+      file: "中外美术简史_贺西林等.pdf",
+      colors: ["#e0457b", "#7a2a6a"]
+    },
+    {
+      title: "作为探究的艺术",
+      subtitle: "迈向艺术、科学与技术的新合作",
+      author: "马尔哈·毕吉特",
+      category: "艺术与科技",
+      status: "想读",
+      note: "艺术、科学与技术如何交叉合作，也和我做 AI 视频有关。",
+      file: "作为探究的艺术 迈向艺术、科学与技术的新合作_马尔哈·毕吉特.pdf",
+      colors: ["#3d3a9e", "#ff9a6b"]
+    }
+  ];
+
+  const FOLDER = "books/";
+  const statusColor = { "想读": "#9fb7ff", "在读": "#9ee6c9", "读完": "#ffb07a" };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function render(filter) {
+    const list = filter === "全部" ? books : books.filter(b => b.category === filter);
+    document.getElementById("shelf").innerHTML = list.map(b => {
+      const n = books.indexOf(b) + 1;
+      const [c1, c2] = b.colors || ["#e0457b", "#3d3a9e"];
+      return `
+        <article class="book">
+          <div class="cover" style="--c1:${c1};--c2:${c2}">
+            <div class="cover-inner">
+              <div class="cover-title">${esc(b.title)}</div>
+              <div class="cover-meta">
+                <span class="cover-no">NO.${String(n).padStart(2, "0")}</span>
+                <span class="cover-author">${esc(b.author)}</span>
+              </div>
+            </div>
+          </div>
+          <div class="book-body">
+            <div class="row">
+              <span class="cat">${esc(b.category)}</span>
+              <span class="status" style="--sc:${statusColor[b.status] || "#fff"}">● ${esc(b.status)}</span>
+            </div>
+            <h3>${esc(b.title)}${b.subtitle ? `<br><small style="font-weight:400;font-size:13px;color:var(--ink-dim)">${esc(b.subtitle)}</small>` : ""}</h3>
+            <div class="author">${esc(b.author)}</div>
+            ${b.note ? `<p class="note">${esc(b.note)}</p>` : ""}
+            <div class="file">
+              <div class="fname">books/${esc(b.file)}</div>
+              <div class="actions">
+                <a class="open" href="${FOLDER + encodeURIComponent(b.file)}" target="_blank" rel="noopener">打开 PDF</a>
+                <button class="copy" type="button" data-file="${esc(b.file)}">复制文件名</button>
+              </div>
+            </div>
+          </div>
+        </article>`;
+    }).join("");
+  }
+
+  // 筛选
+  const cats = ["全部", ...new Set(books.map(b => b.category))];
+  const filtersEl = document.getElementById("filters");
+  filtersEl.innerHTML = cats.map((c, i) => `<button type="button" class="${i ? "" : "on"}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+  filtersEl.addEventListener("click", e => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    filtersEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+    render(btn.dataset.c);
+  });
+
+  // 复制文件名
+  const toast = document.getElementById("toast");
+  let toastTimer;
+  function showToast(msg) {
+    toast.textContent = msg; toast.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 1800);
+  }
+  document.getElementById("shelf").addEventListener("click", e => {
+    const btn = e.target.closest(".copy");
+    if (!btn) return;
+    const name = btn.dataset.file;
+    const fallback = () => {
+      const el = btn.closest(".file").querySelector(".fname");
+      const r = document.createRange(); r.selectNodeContents(el);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      showToast("已选中文件名，请按 Ctrl+C 复制");
+    };
+    if (navigator.clipboard) navigator.clipboard.writeText(name).then(() => showToast("已复制：" + name), fallback);
+    else fallback();
+  });
+
+  // 统计
+  const reading = books.filter(b => b.status === "在读").length;
+  const done = books.filter(b => b.status === "读完").length;
+  document.getElementById("count").textContent = `${books.length} 本 · 在读 ${reading} · 读完 ${done}`;
+
+  // 星星
+  const starsEl = document.getElementById("stars");
+  for (let i = 0; i < 110; i++) {
+    const s = document.createElement("div");
+    s.className = "star";
+    const size = Math.random() < 0.15 ? 3 : 2;
+    s.style.cssText = `left:${Math.random() * 100}%;top:${Math.random() * 70}%;width:${size}px;height:${size}px;--d:${3 + Math.random() * 4}s;--delay:${-Math.random() * 6}s`;
+    starsEl.appendChild(s);
+  }
+
+  render("全部");
+</script>
+</body>
+</html>
