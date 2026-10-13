@@ -1,0 +1,12 @@
+{
+  "name": "yuntuohui-promo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bash render/build.sh",
+    "remux": "bash render/build.sh --remux"
+  },
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}

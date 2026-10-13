@@ -22,10 +22,8 @@ so picture and sound stay locked to the 120 BPM grid.
 
 ## Render
 ```sh
-node render/render.mjs sfx build/sfx.json            # sound cue list from the timeline
-python3 render/audio.py build/sfx.json build/audio.wav
-node render/render.mjs frames 9x16 2.45,5.5 build/sheet   # stills
-node render/render.mjs video 9x16 build/9x16.mp4 60       # silent video
-ffmpeg -i build/9x16.mp4 -i build/audio.wav -c:v copy -c:a aac -b:a 256k -af loudnorm=I=-14:TP=-1 out.mp4
+npm install && npx playwright install chromium && pip install -r requirements.txt   # once; also needs ffmpeg
+./render/build.sh                                  # all three formats → output/
+./render/build.sh --voice vo.wav --voice-offset 0.3   # with voiceover (music ducks under it)
 ```
-Needs Chromium via Playwright, ffmpeg, Python with numpy + Pillow.
+All on-screen text is in `COPY` at the top of `src/motion.js`. See `../AGENTS.md` for the full guide.

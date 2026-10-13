@@ -2,6 +2,24 @@
  * Everything is a pure function of time t (seconds), so any frame can be
  * rendered on its own. 120 BPM → one beat = 0.5s, every cue sits on the grid. */
 
+// ============ ALL ON-SCREEN TEXT — edit here ============
+// Hook words must stay 5 (one per beat); each format lists how they break into lines.
+const COPY = {
+  hook: {
+    portrait: [['STILL'], ['SELLING'], ['ONLY'], ['AT', 'HOME?']],
+    landscape: [['STILL', 'SELLING'], ['ONLY', 'AT'], ['HOME?']],
+    square: [['STILL'], ['SELLING'], ['ONLY', 'AT'], ['HOME?']],
+  },
+  brandName: 'YUNTUOHUI',
+  brandLine: 'FROM YUNNAN TO THE WORLD',
+  brandTag: 'CROSS-BORDER E-COMMERCE  ·  GLOBAL EXPANSION',
+  f1: { title: ['MADE IN YUNNAN.', 'SOLD WORLDWIDE.'], sub: 'Global expansion services that take Yunnan enterprises to the world.', pin: 'YUNNAN' },
+  f2: { title: ['FROM ZERO', 'TO ONE'], sub: 'No experience needed. We train you from your first store to your first order.', steps: ['START', 'OPEN A STORE', 'LIST PRODUCTS', 'FIRST ORDER'] },
+  f3: { title: ['A YEAR BY', 'YOUR SIDE.'], sub: 'Our online community coaches you for 12 months, every step of the way.', button: 'JOIN', joined: 'JOINED' },
+  metric: { unit: 'DAYS', line: 'OF HANDS-ON COACHING', sub: 'ONE PARTNER FOR EVERY STAGE', audience: ['BEGINNERS', 'SELLERS', 'ENTERPRISES'] },
+  cta: { title: 'GO GLOBAL. START HERE.', sub: 'Scan to follow us on WeChat' },
+};
+
 const BPM = 120, BEAT = 60 / BPM, DUR = 20;
 const C = {
   navy: '#00133D', blue: '#003CAC', blueHi: '#2A63D9', blueLo: '#00267A',
@@ -178,9 +196,7 @@ function layout() {
   const m = P ? 0.075 * W : L ? 0.07 * W : 0.08 * W;
   const lay = { m };
   // hook lines
-  lay.hookLines = P ? [['STILL'], ['SELLING'], ['ONLY'], ['AT', 'HOME?']]
-    : L ? [['STILL', 'SELLING'], ['ONLY', 'AT'], ['HOME?']]
-      : [['STILL'], ['SELLING'], ['ONLY', 'AT'], ['HOME?']];
+  lay.hookLines = COPY.hook[KIND];
   const maxH = P ? H * 0.66 : H * 0.8;
   const contentW = L ? W * 0.62 : W - 2 * m;
   let sizes = lay.hookLines.map(l => fitSize(l.join(' '), 900, DISPLAY, contentW));
@@ -411,7 +427,7 @@ function sceneLogo(t) {
   if (np > 0) {
     ctx.save(); ctx.beginPath(); ctx.rect(0, L.ty - size * 1.1, W, size * 1.4); ctx.clip();
     ctx.fillStyle = C.blue; ctx.font = font(800, size); ctx.letterSpacing = `${size * 0.42}px`;
-    ctx.fillText('YUNTUOHUI', W / 2 + size * 0.21, L.ty + (1 - np) * size * 1.3);
+    ctx.fillText(COPY.brandName, W / 2 + size * 0.21, L.ty + (1 - np) * size * 1.3);
     ctx.restore(); ctx.letterSpacing = '0px';
   }
   const hs = Math.min(W, H) * (KIND === 'landscape' ? 0.05 : 0.058);
@@ -419,10 +435,10 @@ function sceneLogo(t) {
   if (hp > 0) {
     ctx.save(); ctx.beginPath(); ctx.rect(0, hy - hs * 0.95, W, hs * 1.2); ctx.clip();
     ctx.fillStyle = C.navy; ctx.font = font(900, hs); ctx.textAlign = 'center';
-    skewText('FROM YUNNAN TO THE WORLD', W / 2, hy + (1 - hp) * hs * 1.2);
+    skewText(COPY.brandLine, W / 2, hy + (1 - hp) * hs * 1.2);
     ctx.restore();
   }
-  const tag = 'CROSS-BORDER E-COMMERCE  ·  GLOBAL EXPANSION';
+  const tag = COPY.brandTag;
   const ts = Math.min(W, H) * (KIND === 'landscape' ? 0.022 : 0.026);
   const chars = Math.floor(prog(u, 2.0, 2.5) * tag.length);
   ctx.font = font(600, ts, BODY); ctx.fillStyle = C.blue; ctx.letterSpacing = `${ts * 0.16}px`;
@@ -562,11 +578,11 @@ function sceneF1(t) {
     ctx.fillStyle = C.navy; ctx.beginPath(); ctx.arc(0, -pr * 1.55, pr * 0.42, 0, 7); ctx.fill();
     ctx.restore();
     const ls = Math.min(W, H) * 0.026, lp = E.outBack(prog(t, 7.08, 7.4));
-    pill('YUNNAN', pin.x, pin.y - R * 0.07 * 2.4 - ls * 1.6, ls, C.yellow, C.navy, clamp(lp), lp, 900);
+    pill(COPY.f1.pin, pin.x, pin.y - R * 0.07 * 2.4 - ls * 1.6, ls, C.yellow, C.navy, clamp(lp), lp, 900);
   }
   const away = E.inCubic(prog(t, 7.35, 7.9));
   cursor(cx + away * I.R * 0.9, cy + away * I.R * 1.1, press, 1 - prog(t, 7.7, 7.9));
-  featureText(t, t0, 1, ['MADE IN YUNNAN.', 'SOLD WORLDWIDE.'], 'Global expansion services that take Yunnan enterprises to the world.', '#fff', C.yellow, C.navy);
+  featureText(t, t0, 1, COPY.f1.title, COPY.f1.sub, '#fff', C.yellow, C.navy);
 }
 
 // --- F2: zero to one
@@ -579,7 +595,7 @@ function sceneF2(t) {
   const tw = KIND === 'landscape' ? R * 2.35 : W * 0.8;
   const x0 = I.cx - tw / 2, x1 = I.cx + tw / 2, ty = I.cy + R * 0.72;
   const f = prog(t, 9.0, 9.75);
-  const nodes = [0, 1 / 3, 2 / 3, 1], labels = ['START', 'OPEN A STORE', 'LIST PRODUCTS', 'FIRST ORDER'];
+  const nodes = [0, 1 / 3, 2 / 3, 1], labels = COPY.f2.steps;
   // big digit (0 → 1, odometer roll)
   const ds = R * 1.55, dcy = I.cy - R * 0.18;
   const roll = E.inOutCubic(prog(t, 9.72, 10.0));
@@ -639,7 +655,7 @@ function sceneF2(t) {
   const press = t >= 9.0 && t < 9.8 ? 1 : Math.max(0, 1 - Math.abs(t - 9.0) / 0.08);
   clickFx(t, 9.0, x0, ty, C.navy);
   cursor(cx + R * 0.02 + rel * R * 0.5, cy + R * 0.02 + rel * R * 0.8, press, ip * (1 - prog(t, 10.1, 10.3)));
-  featureText(t, t0, 2, ['FROM ZERO', 'TO ONE'], 'No experience needed. We train you from your first store to your first order.', C.navy, C.navy, C.yellow);
+  featureText(t, t0, 2, COPY.f2.title, COPY.f2.sub, C.navy, C.navy, C.yellow);
 }
 
 // --- F3: one-year community coaching
@@ -689,9 +705,9 @@ function sceneF3(t) {
   ctx.shadowColor = 'transparent';
   const fs = bh * 0.42;
   ctx.font = font(900, fs); ctx.textAlign = 'center'; ctx.fillStyle = C.navy; ctx.letterSpacing = `${fs * 0.08}px`;
-  if (!clicked) ctx.fillText('JOIN', fs * 0.04, fs * CAP / 2);
+  if (!clicked) ctx.fillText(COPY.f3.button, fs * 0.04, fs * CAP / 2);
   else {
-    ctx.fillText('JOINED', -fs * 0.55, fs * CAP / 2);
+    ctx.fillText(COPY.f3.joined, -fs * 0.55, fs * CAP / 2);
     const cxk = bw / 2 - bh * 0.5;
     ctx.fillStyle = C.blue; ctx.beginPath(); ctx.arc(cxk, 0, bh * 0.3, 0, 7); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 4 * S; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -741,7 +757,7 @@ function sceneF3(t) {
   const ca = E.inOutCubic(prog(t, t0 + 0.12, t0 + 0.45));
   const away = E.inCubic(prog(t, 11.75, 12.3));
   cursor(lerp(I.cx + R * 1.2, I.cx + R * 0.12, ca) + away * R, lerp(I.cy + R * 1.4, I.cy + R * 0.02, ca) + away * R * 1.2, press, ip * (1 - prog(t, 12.1, 12.3)));
-  featureText(t, t0, 3, ['A YEAR BY', 'YOUR SIDE.'], 'Our online community coaches you for 12 months, every step of the way.', '#fff', C.yellow, C.navy);
+  featureText(t, t0, 3, COPY.f3.title, COPY.f3.sub, '#fff', C.yellow, C.navy);
 }
 
 // --- metric: 365
@@ -785,19 +801,19 @@ function sceneMetric(t) {
   ctx.restore();
   const lsz = R * 0.13, lp = E.outExpo(prog(t, 14.5, 14.85));
   ctx.save(); ctx.globalAlpha = lp; ctx.fillStyle = '#fff'; ctx.font = font(900, lsz); ctx.textAlign = 'center'; ctx.letterSpacing = `${lsz * 0.45}px`;
-  ctx.fillText('DAYS', M.cx + lsz * 0.22, ny + ds * CAP * 0.5 + lsz * 1.55 + (1 - lp) * 30 * S);
+  ctx.fillText(COPY.metric.unit, M.cx + lsz * 0.22, ny + ds * CAP * 0.5 + lsz * 1.55 + (1 - lp) * 30 * S);
   ctx.restore(); ctx.letterSpacing = '0px';
   // copy + audience pills
   const ss = Math.min(W, H) * (KIND === 'landscape' ? 0.042 : KIND === 'portrait' ? 0.062 : 0.05);
   const sp = E.outExpo(prog(t, 14.7, 15.1));
   ctx.save(); ctx.globalAlpha = sp; ctx.fillStyle = '#fff'; ctx.textAlign = M.align;
   ctx.font = font(900, ss);
-  const l1 = 'OF HANDS-ON COACHING', l2 = 'ONE PARTNER FOR EVERY STAGE';
+  const l1 = COPY.metric.line, l2 = COPY.metric.sub;
   skewText(l1, M.tx, M.ty + (1 - sp) * 30 * S, 0.1);
   ctx.globalAlpha = sp * 0.75; ctx.font = font(600, ss * 0.62, BODY);
   ctx.fillText(l2, M.tx, M.ty + ss * 1.25);
   ctx.restore();
-  const ps = Math.min(W, H) * (KIND === 'portrait' ? 0.03 : 0.024), names = ['BEGINNERS', 'SELLERS', 'ENTERPRISES'];
+  const ps = Math.min(W, H) * (KIND === 'portrait' ? 0.03 : 0.024), names = COPY.metric.audience;
   const ws = names.map(nm => pillWidth(nm, ps, 800)), gapP = ps * 0.8;
   const py = M.ty + ss * 1.25 + ps * 3.4;
   if (KIND === 'landscape') {
@@ -847,16 +863,16 @@ function sceneCTA(t) {
   }
   // CTA copy
   const hp = E.outExpo(prog(t, 17.3, 17.75));
-  const hs = Math.min(fitSize('GO GLOBAL. START HERE.', 900, DISPLAY, Q.tw), Math.min(W, H) * 0.085);
+  const hs = Math.min(fitSize(COPY.cta.title, 900, DISPLAY, Q.tw), Math.min(W, H) * 0.085);
   ctx.save(); ctx.textAlign = 'center';
   ctx.beginPath(); ctx.rect(0, Q.ty - hs * 0.95, W, hs * 1.2); ctx.clip();
   ctx.fillStyle = C.blue; ctx.font = font(900, hs);
-  skewText('GO GLOBAL. START HERE.', Q.tx + hs * 0.06, Q.ty + (1 - hp) * hs * 1.2);
+  skewText(COPY.cta.title, Q.tx + hs * 0.06, Q.ty + (1 - hp) * hs * 1.2);
   ctx.restore();
   const ss = hs * 0.42, sp2 = E.outCubic(prog(t, 17.5, 17.9));
   ctx.save(); ctx.globalAlpha = sp2; ctx.fillStyle = C.ink; ctx.font = font(600, ss, BODY); ctx.textAlign = 'center';
   ctx.letterSpacing = `${ss * 0.06}px`;
-  ctx.fillText('Scan to follow us on WeChat', Q.tx, Q.ty + ss * 2.1);
+  ctx.fillText(COPY.cta.sub, Q.tx, Q.ty + ss * 2.1);
   ctx.restore(); ctx.letterSpacing = '0px';
   const bar = E.outExpo(prog(t, 17.6, 18.1));
   if (bar > 0) { ctx.fillStyle = C.yellow; const bw = hs * 2 * bar; ctx.fillRect(Q.tx - bw / 2, Q.ty + ss * 3.1, bw, hs * 0.08); }

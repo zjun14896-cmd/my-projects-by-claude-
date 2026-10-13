@@ -10,8 +10,12 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const require = createRequire('/opt/node22/lib/node_modules/');
-const { chromium } = require('playwright');
+// playwright from the local install (npm install), else from a global install
+let chromium;
+try { ({ chromium } = await import('playwright')); }
+catch { ({ chromium } = createRequire(path.join(process.execPath, '../../lib/node_modules/'))('playwright')); }
+// a pre-installed Chromium if there is one, otherwise Playwright's own (npx playwright install chromium)
+const CHROMIUM = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SIZES = { '9x16': [1080, 1920], '1x1': [1080, 1080], '16x9': [1920, 1080] };
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.json': 'application/json', '.jpg': 'image/jpeg' };
@@ -29,7 +33,7 @@ function serve() {
 
 async function open(format) {
   const srv = await serve();
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--disable-web-security'] });
+  const browser = await chromium.launch({ executablePath: CHROMIUM });
   const page = await browser.newPage({ viewport: { width: 800, height: 800 } });
   page.on('pageerror', e => console.error('PAGE ERROR', e));
   await page.goto(`http://localhost:${srv.address().port}/src/index.html`);
