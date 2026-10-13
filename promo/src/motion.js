@@ -63,7 +63,8 @@ function asmCues(t0, sp, gain) {
 }
 asmCues(3.0, 1, 1);
 cue(4.5, 'tick', 0.7);
-for (let i = 0; i < 12; i++) cue(4.75 + i * 0.0625, 'type', 0.35);
+for (let i = 0; i < 8; i++) cue(5.0 + i * 0.0625, 'type', 0.35);
+cue(4.75, 'swish', 0.5);
 // F1 globe
 cue(7.0, 'click'); cue(7.0, 'drop', 0.8);
 const ROUTES = [
@@ -177,9 +178,9 @@ function layout() {
   const m = P ? 0.075 * W : L ? 0.07 * W : 0.08 * W;
   const lay = { m };
   // hook lines
-  lay.hookLines = P ? [['GOING'], ['GLOBAL'], ['FEELS'], ['TOO'], ['HARD?']]
-    : L ? [['GOING', 'GLOBAL'], ['FEELS', 'TOO'], ['HARD?']]
-      : [['GOING'], ['GLOBAL'], ['FEELS', 'TOO'], ['HARD?']];
+  lay.hookLines = P ? [['STILL'], ['SELLING'], ['ONLY'], ['AT', 'HOME?']]
+    : L ? [['STILL', 'SELLING'], ['ONLY', 'AT'], ['HOME?']]
+      : [['STILL'], ['SELLING'], ['ONLY', 'AT'], ['HOME?']];
   const maxH = P ? H * 0.66 : H * 0.8;
   const contentW = L ? W * 0.62 : W - 2 * m;
   let sizes = lay.hookLines.map(l => fitSize(l.join(' '), 900, DISPLAY, contentW));
@@ -209,7 +210,7 @@ function layout() {
     const my = (P ? 0.31 : 0.25) * H - (LOGO.mark.h * mk) / 2;
     const wy = my + LOGO.mark.h * mk + (P ? 0.045 : 0.05) * H;
     const ty = wy + LOGO.word.h * wk + (P ? 0.075 : 0.08) * H;
-    const bottom = ty + Math.min(W, H) * (0.05 * 0.9 + 0.034 * 3.1);
+    const bottom = ty + Math.min(W, H) * (0.05 * 0.9 + 0.058 * 1.25 + 0.026 * 2.6);
     const dy = H * 0.5 - (my + bottom) / 2;
     lay.logo = { mx: (W - mw) / 2, my: my + dy, mk, wx: (W - ww) / 2, wy: wy + dy, wk, ty: ty + dy };
   }
@@ -341,7 +342,7 @@ function sceneHook(t) {
       if (t < wd.t) return;
       const a = prog(t, wd.t, wd.t + 0.24), e = E.outExpo(a);
       const s = lerp(2.1, 1, e);
-      const last = wd.w === 'HARD?';
+      const last = wd.t === SLAMS[SLAMS.length - 1];
       const cx = wd.x + wd.wd / 2, cy = line.base - (line.size * CAP) / 2;
       const draw = (scale, alpha, color, ox = 0) => {
         ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = color; ctx.font = font(900, line.size);
@@ -413,17 +414,21 @@ function sceneLogo(t) {
     ctx.fillText('YUNTUOHUI', W / 2 + size * 0.21, L.ty + (1 - np) * size * 1.3);
     ctx.restore(); ctx.letterSpacing = '0px';
   }
-  const tag = ['CROSS-BORDER E-COMMERCE TRAINING', '& GLOBAL EXPANSION SERVICES'];
-  const ts = Math.min(W, H) * (KIND === 'landscape' ? 0.03 : 0.034);
-  const chars = Math.floor(prog(u, 1.75, 2.5) * (tag[0].length + tag[1].length));
-  ctx.font = font(600, ts, BODY); ctx.fillStyle = C.ink; ctx.letterSpacing = `${ts * 0.08}px`;
-  let left = chars;
-  tag.forEach((line, i) => {
-    const s = line.slice(0, Math.max(0, left)); left -= line.length;
-    const full = ctx.measureText(line).width;
-    ctx.textAlign = 'left';
-    ctx.fillText(s, W / 2 - full / 2, L.ty + size * 0.9 + ts * 1.55 * (i + 1));
-  });
+  const hs = Math.min(W, H) * (KIND === 'landscape' ? 0.05 : 0.058);
+  const hy = L.ty + size * 0.9 + hs * 1.25, hp = E.outExpo(prog(u, 1.75, 2.2));
+  if (hp > 0) {
+    ctx.save(); ctx.beginPath(); ctx.rect(0, hy - hs * 0.95, W, hs * 1.2); ctx.clip();
+    ctx.fillStyle = C.navy; ctx.font = font(900, hs); ctx.textAlign = 'center';
+    skewText('FROM YUNNAN TO THE WORLD', W / 2, hy + (1 - hp) * hs * 1.2);
+    ctx.restore();
+  }
+  const tag = 'CROSS-BORDER E-COMMERCE  ·  GLOBAL EXPANSION';
+  const ts = Math.min(W, H) * (KIND === 'landscape' ? 0.022 : 0.026);
+  const chars = Math.floor(prog(u, 2.0, 2.5) * tag.length);
+  ctx.font = font(600, ts, BODY); ctx.fillStyle = C.blue; ctx.letterSpacing = `${ts * 0.16}px`;
+  const full = ctx.measureText(tag).width;
+  ctx.textAlign = 'left';
+  ctx.fillText(tag.slice(0, chars), W / 2 - full / 2, hy + ts * 2.6);
   ctx.letterSpacing = '0px';
   // yellow accent bar
   const bp = E.outExpo(prog(u, 1.6, 2.1));
@@ -561,7 +566,7 @@ function sceneF1(t) {
   }
   const away = E.inCubic(prog(t, 7.35, 7.9));
   cursor(cx + away * I.R * 0.9, cy + away * I.R * 1.1, press, 1 - prog(t, 7.7, 7.9));
-  featureText(t, t0, 1, ['YUNNAN BRANDS,', 'GO GLOBAL'], 'Global expansion services built for local Yunnan businesses', '#fff', C.yellow, C.navy);
+  featureText(t, t0, 1, ['MADE IN YUNNAN.', 'SOLD WORLDWIDE.'], 'Global expansion services that take Yunnan enterprises to the world.', '#fff', C.yellow, C.navy);
 }
 
 // --- F2: zero to one
@@ -634,7 +639,7 @@ function sceneF2(t) {
   const press = t >= 9.0 && t < 9.8 ? 1 : Math.max(0, 1 - Math.abs(t - 9.0) / 0.08);
   clickFx(t, 9.0, x0, ty, C.navy);
   cursor(cx + R * 0.02 + rel * R * 0.5, cy + R * 0.02 + rel * R * 0.8, press, ip * (1 - prog(t, 10.1, 10.3)));
-  featureText(t, t0, 2, ['FROM ZERO', 'TO ONE'], 'Cross-border e-commerce training for total beginners', C.navy, C.navy, C.yellow);
+  featureText(t, t0, 2, ['FROM ZERO', 'TO ONE'], 'No experience needed. We train you from your first store to your first order.', C.navy, C.navy, C.yellow);
 }
 
 // --- F3: one-year community coaching
@@ -720,15 +725,23 @@ function sceneF3(t) {
     ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 20 * S; ctx.shadowOffsetY = 6 * S;
     const ox = side > 0 ? 0 : -bw2;
     rrect(ox, -bh2, bw2, bh2, bh2 * 0.32); ctx.fill(); ctx.shadowColor = 'transparent';
-    ctx.fillStyle = 'rgba(0,19,61,.75)'; rrect(ox + bw2 * 0.12, -bh2 * 0.72, bw2 * 0.7, bh2 * 0.14, bh2 * 0.07); ctx.fill();
-    ctx.fillStyle = 'rgba(0,19,61,.3)'; rrect(ox + bw2 * 0.12, -bh2 * 0.42, bw2 * (0.45 + 0.1 * k), bh2 * 0.14, bh2 * 0.07); ctx.fill();
+    const typing = t < bt + 0.4, wr = E.outExpo(prog(t, bt + 0.4, bt + 0.75));
+    if (typing) {
+      for (let d = 0; d < 3; d++) {
+        const j = Math.max(0, Math.sin((t - bt) * 18 - d * 1.1)) * bh2 * 0.12;
+        ctx.fillStyle = 'rgba(0,19,61,.55)'; ctx.beginPath(); ctx.arc(ox + bw2 * (0.36 + d * 0.14), -bh2 * 0.5 - j, bh2 * 0.07, 0, 7); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = C.blue; rrect(ox + bw2 * 0.12, -bh2 * 0.72, bw2 * 0.7 * wr, bh2 * 0.14, bh2 * 0.07); ctx.fill();
+      ctx.fillStyle = 'rgba(0,19,61,.28)'; rrect(ox + bw2 * 0.12, -bh2 * 0.42, bw2 * (0.45 + 0.1 * k) * wr, bh2 * 0.14, bh2 * 0.07); ctx.fill();
+    }
     ctx.restore();
   });
   // cursor
   const ca = E.inOutCubic(prog(t, t0 + 0.12, t0 + 0.45));
   const away = E.inCubic(prog(t, 11.75, 12.3));
   cursor(lerp(I.cx + R * 1.2, I.cx + R * 0.12, ca) + away * R, lerp(I.cy + R * 1.4, I.cy + R * 0.02, ca) + away * R * 1.2, press, ip * (1 - prog(t, 12.1, 12.3)));
-  featureText(t, t0, 3, ['A FULL YEAR', 'OF COACHING'], 'Our online community walks with you, step by step, for 12 months', '#fff', C.yellow, C.navy);
+  featureText(t, t0, 3, ['A YEAR BY', 'YOUR SIDE.'], 'Our online community coaches you for 12 months, every step of the way.', '#fff', C.yellow, C.navy);
 }
 
 // --- metric: 365
@@ -779,7 +792,7 @@ function sceneMetric(t) {
   const sp = E.outExpo(prog(t, 14.7, 15.1));
   ctx.save(); ctx.globalAlpha = sp; ctx.fillStyle = '#fff'; ctx.textAlign = M.align;
   ctx.font = font(900, ss);
-  const l1 = 'OF HANDS-ON COACHING', l2 = 'BUILT FOR EVERY STAGE';
+  const l1 = 'OF HANDS-ON COACHING', l2 = 'ONE PARTNER FOR EVERY STAGE';
   skewText(l1, M.tx, M.ty + (1 - sp) * 30 * S, 0.1);
   ctx.globalAlpha = sp * 0.75; ctx.font = font(600, ss * 0.62, BODY);
   ctx.fillText(l2, M.tx, M.ty + ss * 1.25);
@@ -834,16 +847,16 @@ function sceneCTA(t) {
   }
   // CTA copy
   const hp = E.outExpo(prog(t, 17.3, 17.75));
-  const hs = Math.min(fitSize('FOLLOW US ON WECHAT', 900, DISPLAY, Q.tw), Math.min(W, H) * 0.085);
+  const hs = Math.min(fitSize('GO GLOBAL. START HERE.', 900, DISPLAY, Q.tw), Math.min(W, H) * 0.085);
   ctx.save(); ctx.textAlign = 'center';
   ctx.beginPath(); ctx.rect(0, Q.ty - hs * 0.95, W, hs * 1.2); ctx.clip();
   ctx.fillStyle = C.blue; ctx.font = font(900, hs);
-  skewText('FOLLOW US ON WECHAT', Q.tx + hs * 0.06, Q.ty + (1 - hp) * hs * 1.2, 0.1);
+  skewText('GO GLOBAL. START HERE.', Q.tx + hs * 0.06, Q.ty + (1 - hp) * hs * 1.2);
   ctx.restore();
   const ss = hs * 0.42, sp2 = E.outCubic(prog(t, 17.5, 17.9));
   ctx.save(); ctx.globalAlpha = sp2; ctx.fillStyle = C.ink; ctx.font = font(600, ss, BODY); ctx.textAlign = 'center';
   ctx.letterSpacing = `${ss * 0.06}px`;
-  ctx.fillText('Scan the code · WeChat Official Account', Q.tx, Q.ty + ss * 2.1);
+  ctx.fillText('Scan to follow us on WeChat', Q.tx, Q.ty + ss * 2.1);
   ctx.restore(); ctx.letterSpacing = '0px';
   const bar = E.outExpo(prog(t, 17.6, 18.1));
   if (bar > 0) { ctx.fillStyle = C.yellow; const bw = hs * 2 * bar; ctx.fillRect(Q.tx - bw / 2, Q.ty + ss * 3.1, bw, hs * 0.08); }
