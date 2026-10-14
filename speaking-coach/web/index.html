@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>口语精听校对</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232f6fde'/><rect x='12' y='6' width='8' height='14' rx='4' fill='white'/><path d='M9 15a7 7 0 0 0 14 0M16 22v4' stroke='white' stroke-width='2.2' fill='none' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a href="#/" class="brand"><span class="brand-dot"></span>口语精听校对</a>
+  <button class="btn ghost" id="btn-settings" type="button">设置</button>
+</header>
+<main id="app"></main>
+
+<dialog id="settings-dialog">
+  <form method="dialog" id="settings-form" autocomplete="off">
+    <h2>设置</h2>
+    <p class="muted small">密钥只保存在这台电脑的 <code>data/settings.json</code> 里，页面上不会显示完整内容。已保存的密钥输入框留空 = 保持不变。</p>
+
+    <fieldset>
+      <legend>DeepSeek <span class="tag" data-ready="llm"></span></legend>
+      <p class="muted small">负责「AI 理解的中文」和「更地道的说法」。</p>
+      <label>API Key
+        <span class="secret-row"><input type="password" name="deepseek_api_key" placeholder="sk-..."><button type="button" class="btn ghost small" data-clear="deepseek_api_key">清除</button></span>
+      </label>
+      <details>
+        <summary>高级</summary>
+        <label>模型 <input name="deepseek_model" placeholder="deepseek-chat"></label>
+        <label>接口地址 <input name="deepseek_base_url" placeholder="https://api.deepseek.com"></label>
+      </details>
+      <button type="button" class="btn small" data-test="deepseek">保存并测试</button>
+      <span class="test-result" data-result="deepseek"></span>
+    </fieldset>
+
+    <fieldset>
+      <legend>豆包语音（转写） <span class="tag" data-ready="asr"></span></legend>
+      <p class="muted small">火山引擎「大模型录音文件识别 · 极速版」。二选一填写：新版控制台的 API Key，或旧版的 App ID + Access Token。<b>接口还没用真实密钥测过</b>，拿到后点下面的测试。</p>
+      <label>API Key（新版控制台）
+        <span class="secret-row"><input type="password" name="doubao_api_key"><button type="button" class="btn ghost small" data-clear="doubao_api_key">清除</button></span>
+      </label>
+      <div class="two">
+        <label>App ID（旧版） <input name="doubao_app_id"></label>
+        <label>Access Token（旧版）
+          <span class="secret-row"><input type="password" name="doubao_access_token"><button type="button" class="btn ghost small" data-clear="doubao_access_token">清除</button></span>
+        </label>
+      </div>
+      <details>
+        <summary>高级</summary>
+        <label>Resource ID <input name="doubao_resource_id" placeholder="volc.bigasr.auc_turbo"></label>
+        <label>语言（留空 = 自动识别，也可以填 en-US） <input name="doubao_language" placeholder=""></label>
+      </details>
+      <button type="button" class="btn small" data-test="doubao">保存并测试</button>
+      <span class="test-result" data-result="doubao"></span>
+    </fieldset>
+
+    <div class="dialog-actions">
+      <button type="button" class="btn" id="settings-close">关闭</button>
+      <button type="button" class="btn primary" id="settings-save">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="/app.js"></script>
+</body>
+</html>
