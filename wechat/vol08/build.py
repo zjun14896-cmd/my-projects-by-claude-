@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""云拓会 · 实操现场 Vol.08 —— 公众号正文构建脚本。
+"""云拓会 · 第 8 期线下实操课 —— 公众号正文构建脚本（第三版）。
 
 一份源，三个产物：
-  dist/article.html      粘贴进公众号编辑器的正文片段（图片用 CDN 绝对地址）
-  preview.html           本地审稿 + 一键复制工具（完整 HTML 文档）
-  artifact/index.html    同一工具页的在线版本（无文档骨架）
+  dist/article.html            粘贴进公众号编辑器的正文片段（图片用 CDN 绝对地址）
+  dist/article.template.html   同一正文，图片为占位符，供 publish_draft.py 使用
+  preview.html / artifact/     审稿 + 一键复制工具页
 
 正文只用公众号会保留的写法：内联 style、<section>/<p>/<span>/<img>、内联 <svg> + SMIL。
 不用 id / class / <style> / <script> / position:absolute / url(#…)。
-所有交互动画都遵循「静态兜底」：SMIL 被过滤时，画面停在可读的完成态（勾选清单停在未勾选态）。
+交互模块的属性基值写成「完成态」，SMIL 被过滤时画面停在完整可读的状态。
 
-用法：python3 build.py [--img-base URL前缀]
+用法：python3 build.py [--ref 提交号]
 """
 import argparse
 import html
@@ -20,46 +20,60 @@ import re
 
 ROOT = pathlib.Path(__file__).resolve().parent
 IMG = "{{IMG}}"  # 图片前缀占位符：预览时换成 img/，复制时换成 CDN 地址
-
 REPO = "zjun14896-cmd/my-projects-by-claude-"
 IMG_PATH = "wechat/vol08/img/"
 
+TITLE = "第 8 期线下实操课结束了：五天，把路走通"
+DIGEST = "网上的东西看了不少，真要自己动手，还是不知道该怎么做。这五天，我们就从这里开始。"
+
 # ── 设计令牌 ─────────────────────────────────────────────
-BLUE = "#003CAC"      # 品牌蓝（取自 logo）
-YELLOW = "#FFC833"    # 品牌黄（取自 logo）
-INK = "#1D1D1F"       # 标题
-BODY = "#3C3C43"      # 正文
-GRAY = "#86868B"      # 图注 / 次要
-DARK = "#07090F"      # 深色模块底
-D_TEXT = "#F5F5F7"
-D_MUTED = "#A1A1A8"
+# 白底长文 + 午夜蓝模块。品牌蓝负责结构（序号、标签、图形），品牌黄只做强调（荧光笔、进度、亮点）。
+BLUE = "#003CAC"       # 品牌蓝（logo）
+BLUE_SOFT = "#EEF3FF"  # 品牌蓝 6% 浅底
+YELLOW = "#FFC833"     # 品牌黄（logo）
+INK = "#111318"        # 标题、强调
+BODY = "#3B3F48"       # 正文
+MUTED = "#8B909A"      # 注释
+LINE = "#E6E8EE"       # 细分隔线
+TILE = "#F3F5F8"       # 浅色模块底
+NIGHT = "#050A18"      # 午夜蓝模块底
+NIGHT_TEXT = "#A3AABB"
 FONT = ("-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB',"
         "'Microsoft YaHei','Helvetica Neue',Arial,sans-serif")
 SVG_NS = 'xmlns="http://www.w3.org/2000/svg"'
+MARK = "background-image:linear-gradient(transparent 60%,rgba(255,200,51,0.6) 60%);"
 
 
-# ── 基础组件 ─────────────────────────────────────────────
+# ── 文字组件 ─────────────────────────────────────────────
 def p(text, style=""):
     return f'<p style="margin:0;padding:0;{style}">{text}</p>'
 
 
-def body(text, top=18):
-    return p(text, f"margin-top:{top}px;font-size:16px;line-height:1.85;color:{BODY};"
-                   "letter-spacing:0.4px;text-align:justify;")
+def body(*lines, top=18):
+    return p("<br>".join(lines), f"margin-top:{top}px;font-size:16px;line-height:1.9;color:{BODY};letter-spacing:0.3px;")
 
 
-def eyebrow(num, label, color=BLUE):
-    return p(f'{num}<span style="color:#C7C7CC;margin:0 8px;">/</span>{label}',
-             f"font-size:12px;line-height:1.4;letter-spacing:2.5px;color:{color};font-weight:600;")
+def strong(t):
+    return f'<span style="color:{INK};font-weight:600;">{t}</span>'
 
 
-def h2(text):
-    return p(text, f"margin-top:14px;font-size:27px;line-height:1.34;color:{INK};"
-                   "font-weight:700;letter-spacing:-0.2px;")
+def mark(t):
+    """荧光笔：每节最多一处，标出这一节最想让读者记住的事实。"""
+    return f'<span style="color:{INK};font-weight:600;{MARK}">{t}</span>'
+
+
+def opener(n, *q_lines):
+    """章节开头：细体大序号 + 读者的原话。问题就是标题。"""
+    q = "<br>".join(q_lines)
+    q = f'<span style="color:{BLUE};">「</span>{q}<span style="color:{BLUE};">」</span>'
+    return (p(f'<span style="font-size:46px;line-height:1;font-weight:200;color:{BLUE};letter-spacing:-1px;">{n:02d}</span>'
+              f'<span style="font-size:12px;line-height:1;color:{MUTED};letter-spacing:1px;margin-left:8px;">/ 05</span>',
+              "line-height:1;")
+            + p(q, f"margin-top:16px;font-size:24px;line-height:1.5;font-weight:700;color:{INK};letter-spacing:0.3px;"))
 
 
 def caption(text):
-    return p(text, f"margin-top:10px;font-size:12px;line-height:1.6;color:{GRAY};letter-spacing:0.5px;")
+    return p(text, f"margin-top:10px;font-size:12px;line-height:1.6;color:{MUTED};letter-spacing:1px;")
 
 
 def img(name, alt):
@@ -67,57 +81,50 @@ def img(name, alt):
             'style="display:block;width:100%;height:auto;margin:0;padding:0;border:0;">')
 
 
-def photo(name, alt, cap=None, overlay="", radius=18, top=28):
-    out = (f'<section style="margin-top:{top}px;">'
-           f'<section style="border-radius:{radius}px;overflow:hidden;line-height:0;font-size:0;">'
-           f'{img(name, alt)}{overlay}</section>')
-    if cap:
-        out += caption(cap)
-    return out + "</section>"
+def photo(name, alt, cap=None, top=26, radius=16):
+    out = (f'<section style="margin-top:{top}px;"><section style="border-radius:{radius}px;overflow:hidden;'
+           f'line-height:0;font-size:0;">{img(name, alt)}</section>')
+    return out + (caption(cap) if cap else "") + "</section>"
 
 
-def chapter(*parts, top=76):
+def chapter(*parts, top=88):
     return f'<section style="margin-top:{top}px;">{"".join(parts)}</section>'
 
 
-def dark_module(svg, top=28, radius=24, glow_at="50% 110%"):
-    """深色交互模块：外层 section 负责圆角裁切与底色（品牌蓝柔光用 CSS 渐变，被过滤时退回纯色）。"""
-    return (f'<section style="margin-top:{top}px;border-radius:{radius}px;overflow:hidden;'
-            f'line-height:0;font-size:0;background-color:{DARK};'
-            f'background-image:radial-gradient(90% 75% at {glow_at},rgba(0,60,172,0.62) 0%,rgba(0,60,172,0) 70%);">'
-            f'{svg}</section>')
+def rows(items, label_w=None):
+    """细线分隔的列表。items: [(小标签, 正文)]；label_w 给定时标签与正文同行。"""
+    out = ""
+    for i, (lab, txt) in enumerate(items):
+        last = i == len(items) - 1
+        bb = f"border-bottom:1px solid {LINE};" if last else ""
+        if label_w:
+            out += (f'<section style="display:flex;align-items:baseline;padding:13px 0;border-top:1px solid {LINE};{bb}">'
+                    f'<section style="flex:none;width:{label_w}px;font-size:13px;line-height:1.6;color:{BLUE};'
+                    f'font-weight:600;letter-spacing:1px;">{lab}</section>'
+                    f'<section style="flex:1;min-width:0;font-size:16px;line-height:1.7;color:{INK};font-weight:500;">{txt}</section>'
+                    "</section>")
+        else:
+            out += (f'<section style="padding:16px 0;border-top:1px solid {LINE};{bb}">'
+                    + p(lab, f"font-size:12px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:2px;")
+                    + p(txt, f"margin-top:6px;font-size:15px;line-height:1.8;color:{BODY};letter-spacing:0.2px;")
+                    + "</section>")
+    return out
 
 
 # ── SMIL 片段 ────────────────────────────────────────────
-# 层级技巧：公众号会删掉 id，无法用 "xx.click" 跨元素触发。
-# 因此把可点击的透明热区放在最深层，点击事件会冒泡到每一层祖先 <g>，
-# 每层 <g> 用 begin="click" 驱动自己的 fill-opacity / transform（可继承属性），
-# 各层的可见元素继承所在层的值，从而一次轻点触发一整套编排。
+# 公众号会删掉 id，无法用 "xx.click" 跨元素触发。做法：透明热区放在最深层，
+# 点击事件冒泡经过每一层祖先 <g>，每层用 begin="click" 驱动自己的可继承属性
+# （fill-opacity / stroke-dashoffset / transform），一次轻点触发一整套编排。
 def fade(start, end, begin="click", dur="0.45s"):
-    """属性基值写在 <g> 上作为兜底终态；加载即 <set> 到初始态；轻点后动画到终态。"""
+    """属性基值（写在 <g> 上）= 完成态兜底；加载即 <set> 到初始态；轻点后动画到完成态。"""
     return (f'<set attributeName="fill-opacity" to="{start}" begin="0s"/>'
             f'<animate attributeName="fill-opacity" values="{start};{end}" dur="{dur}" '
             f'begin="{begin}" fill="freeze" restart="never"/>')
 
 
-def slide(dx0, dy0, begin="click", dur="0.6s"):
-    return (f'<animateTransform attributeName="transform" type="translate" from="{dx0} {dy0}" '
-            f'to="{dx0} {dy0}" dur="0.001s" begin="0s" fill="freeze"/>'
-            f'<animateTransform attributeName="transform" type="translate" values="{dx0} {dy0};0 0" '
-            f'keyTimes="0;1" calcMode="spline" keySplines="0.2 0.8 0.2 1" dur="{dur}" '
-            f'begin="{begin}" fill="freeze" restart="never"/>')
-
-
-def hit(x=-400, y=-400, w=1200, h=1200):
-    return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="#000000" fill-opacity="0" '
+def hit():
+    return ('<rect x="-400" y="-400" width="1200" height="1400" fill="#000000" fill-opacity="0" '
             'pointer-events="all" style="cursor:pointer;"/>')
-
-
-def pulse(cx, cy, r0, r1, period="1.8s", op="0.55"):
-    return (f'<circle cx="{cx}" cy="{cy}" r="{r0}" fill="{YELLOW}" opacity="{op}">'
-            f'<animate attributeName="r" values="{r0};{r1}" dur="{period}" repeatCount="indefinite"/>'
-            f'<animate attributeName="opacity" values="{op};0" dur="{period}" repeatCount="indefinite"/>'
-            '</circle>')
 
 
 def svg_open(w, h, style=""):
@@ -125,276 +132,271 @@ def svg_open(w, h, style=""):
             f'style="display:block;width:100%;{style}" font-family="{FONT}">')
 
 
-# ── 交互模块 ─────────────────────────────────────────────
-def hero_timeline():
-    """开班五天：加载时进度线划过，五个日期点依次亮起。"""
-    xs = [6, 78, 150, 222, 294]
-    dots = ""
-    for i, x in enumerate(xs):
-        b = 0.5 + 0.38 * i
-        dots += (f'<circle cx="{x}" cy="40" r="4.5" fill="{YELLOW}" fill-opacity="1">'
-                 f'<set attributeName="fill-opacity" to="0.18" begin="0s"/>'
-                 f'<animate attributeName="fill-opacity" values="0.18;1" dur="0.35s" begin="{b:.2f}s" fill="freeze"/>'
-                 '</circle>')
-        dots += (f'<text x="{x}" y="64" font-size="11" fill="{D_MUTED}" text-anchor="middle" '
-                 f'letter-spacing="0.5">{12 + i}</text>')
-    return (svg_open(300, 70, "margin-top:30px;")
-            + f'<text x="0" y="14" font-size="11" fill="{D_MUTED}" letter-spacing="1">10.12</text>'
-            + f'<text x="150" y="14" font-size="11" fill="{D_TEXT}" text-anchor="middle" letter-spacing="2">五天 · 线下实操</text>'
-            + f'<text x="300" y="14" font-size="11" fill="{D_MUTED}" text-anchor="end" letter-spacing="1">10.16</text>'
-            + '<rect x="6" y="39.25" width="288" height="1.5" fill="#2C2F38"/>'
-            + f'<line x1="6" y1="40" x2="294" y2="40" stroke="{YELLOW}" stroke-width="1.5" '
-              'stroke-dasharray="288" stroke-dashoffset="0">'
-              '<set attributeName="stroke-dashoffset" to="288" begin="0s"/>'
-              '<animate attributeName="stroke-dashoffset" values="288;0" dur="1.6s" begin="0.5s" '
-              'calcMode="spline" keyTimes="0;1" keySplines="0.4 0 0.2 1" fill="freeze"/></line>'
-            + dots + "</svg>")
+def t(x, y, s, size, fill, weight=400, anchor="start", ls=0, extra=""):
+    a = f' text-anchor="{anchor}"' if anchor != "start" else ""
+    w = f' font-weight="{weight}"' if weight != 400 else ""
+    l = f' letter-spacing="{ls}"' if ls else ""
+    return f'<text x="{x}" y="{y}" font-size="{size}" fill="{fill}"{w}{a}{l}{extra}>{s}</text>'
 
 
-def switch_module():
-    """「听懂 → 做到」开关：轻点后滑块右移、轨道变蓝、大字由「听懂了。」换成「做出来了。」"""
-    W, H = 343, 300
-    cx = W / 2
-    return dark_module(
-        svg_open(W, H)
-        + f'<text x="24" y="44" font-size="12" font-weight="600" fill="{YELLOW}" letter-spacing="3">先试一下</text>'
-        + f'<text x="117" y="195" font-size="13" fill="{D_MUTED}" text-anchor="end" letter-spacing="1">听懂</text>'
-        + f'<text x="226" y="195" font-size="13" fill="{D_MUTED}" letter-spacing="1">做到</text>'
-        # L1 终态层
-        + '<g fill-opacity="1">' + fade(0, 1, "click+0.12s", "0.5s")
-        + f'<rect x="131.5" y="168" width="80" height="44" rx="22" fill="{BLUE}"/>'
-        + f'<text x="{cx}" y="128" font-size="38" font-weight="700" fill="{YELLOW}" text-anchor="middle" letter-spacing="1">做出来了。</text>'
-        + f'<text x="{cx}" y="262" font-size="13" fill="#C7C7CC" text-anchor="middle" letter-spacing="0.5">中间这一步，就是课堂要陪你走完的路。</text>'
-        # L2 初始态层
-        + '<g fill-opacity="0">' + fade(1, 0, "click", "0.3s")
-        + '<rect x="131.5" y="168" width="80" height="44" rx="22" fill="#3A3A3F"/>'
-        + f'<text x="{cx}" y="128" font-size="38" font-weight="700" fill="{D_TEXT}" text-anchor="middle" letter-spacing="1">听懂了。</text>'
-        + f'<text x="{cx}" y="262" font-size="13" fill="{D_MUTED}" text-anchor="middle" letter-spacing="1">轻点开关</text>'
-        + pulse(153.5, 190, 18, 34)
-        # L3 滑块层（含热区）
-        + '<g transform="translate(36 0)">'
-        + '<animateTransform attributeName="transform" type="translate" from="0 0" to="0 0" '
-          'dur="0.001s" begin="0s" fill="freeze"/>'
-        + '<animateTransform attributeName="transform" type="translate" values="0 0;36 0" '
-          'keyTimes="0;1" calcMode="spline" keySplines="0.3 0 0.2 1" dur="0.38s" '
-          'begin="click" fill="freeze" restart="never"/>'
-        + '<circle cx="153.5" cy="192" r="18" fill="#000000" fill-opacity="1" opacity="0.35"/>'
-        + '<circle cx="153.5" cy="190" r="18" fill="#FFFFFF" fill-opacity="1"/>'
-        + hit()
-        + "</g></g></g></svg>")
+def module(svg, top=26):
+    return f'<section style="margin-top:{top}px;line-height:0;font-size:0;">{svg}</section>'
 
 
-def hotspot(w, h, x, y, label, label_at="bottom"):
-    """照片热点：脉冲点提示可点，轻点后出现一条注释。叠在 <img> 上（负 margin，不用绝对定位）。"""
-    by = h - 62 if label_at == "bottom" else 12
-    pill_x = x + 18 if x < w - 80 else x - 66
-    return (svg_open(w, h, f"margin-top:-{h / w * 100:.4f}%;pointer-events:none;")
-            # L1 注释层
-            + '<g fill-opacity="1">' + fade(0, 1, "click+0.1s", "0.5s")
-            + f'<rect x="12" y="{by}" width="{w - 24}" height="50" rx="12" fill="{DARK}" opacity="0.74"/>'
-            + f'<circle cx="31" cy="{by + 25}" r="3.5" fill="{YELLOW}"/>'
-            + f'<text x="44" y="{by + 30}" font-size="15" fill="#FFFFFF" letter-spacing="0.5">{label}</text>'
-            # L2 提示层（含热区）
+# ── 模块 ─────────────────────────────────────────────────
+def hero_numeral():
+    """「08」先以黄色描边画出，再填成白色。打开文章时播放一次。"""
+    return (svg_open(300, 150, "margin-top:30px;pointer-events:none;")
+            + '<text x="-6" y="140" font-size="168" font-weight="700" letter-spacing="-8" fill="#FFFFFF" '
+              f'fill-opacity="1" stroke="{YELLOW}" stroke-width="1.2" stroke-opacity="0" '
+              'stroke-dasharray="560" stroke-dashoffset="0">08'
+              '<set attributeName="fill-opacity" to="0" begin="0s"/>'
+              '<set attributeName="stroke-opacity" to="1" begin="0s"/>'
+              '<set attributeName="stroke-dashoffset" to="560" begin="0s"/>'
+              '<animate attributeName="stroke-dashoffset" values="560;0" dur="1.8s" begin="0.2s" fill="freeze" '
+              'calcMode="spline" keyTimes="0;1" keySplines="0.45 0 0.25 1"/>'
+              '<animate attributeName="fill-opacity" values="0;1" dur="0.8s" begin="1.6s" fill="freeze"/>'
+              '<animate attributeName="stroke-opacity" values="1;0" dur="0.6s" begin="2.2s" fill="freeze"/>'
+              '</text>'
+            + t(300, 66, "第 8 期", 13, "#FFFFFF", 600, "end", 1)
+            + t(300, 88, "线下实操课", 13, NIGHT_TEXT, anchor="end", ls=1)
+            + t(300, 118, "2026.10.12", 12, NIGHT_TEXT, anchor="end", ls=0.5)
+            + t(300, 136, "— 10.16", 12, NIGHT_TEXT, anchor="end", ls=0.5)
+            + "</svg>")
+
+
+def loop_diagram():
+    """课堂节奏：讲一步 → 跟着做 → 逐个查看 → 一起解决，黄点沿环一直走。"""
+    W, H, cx, cy, r = 343, 300, 171.5, 160, 80
+    nodes = [(cx, cy - r, "讲一步", cx, cy - r - 18, "middle"),
+             (cx + r, cy, "跟着做", cx + r + 16, cy + 5, "start"),
+             (cx, cy + r, "逐个查看", cx, cy + r + 26, "middle"),
+             (cx - r, cy, "一起解决", cx - r - 16, cy + 5, "end")]
+    out = (svg_open(W, H, "pointer-events:none;")
+           + f'<rect x="0" y="0" width="{W}" height="{H}" rx="22" fill="{TILE}"/>'
+           + t(22, 36, "课堂节奏", 12, BLUE, 600, ls=2)
+           + f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="#D5DBE6" stroke-width="1.5"/>'
+           + t(cx, cy - 4, "每一步", 14, MUTED, anchor="middle", ls=1)
+           + t(cx, cy + 20, "都这样走一遍", 16, INK, 700, "middle", 1))
+    for i, (x, y, label, lx, ly, anchor) in enumerate(nodes):
+        b = f"{1.5 * i}s"
+        out += (f'<circle cx="{x}" cy="{y}" r="7" fill="#FFFFFF" stroke="{BLUE}" stroke-width="1.5">'
+                f'<animate attributeName="r" values="7;10;7;7" keyTimes="0;0.06;0.18;1" dur="6s" begin="{b}" repeatCount="indefinite"/>'
+                f'<animate attributeName="fill" values="{BLUE};{BLUE};#FFFFFF;#FFFFFF" keyTimes="0;0.1;0.2;1" dur="6s" begin="{b}" repeatCount="indefinite"/>'
+                "</circle>"
+                + t(lx, ly, label, 14, INK, 600, anchor, 1))
+    out += (f'<circle cx="{cx}" cy="{cy - r}" r="5" fill="{YELLOW}">'
+            f'<animateMotion path="M0,0 A{r},{r} 0 0 1 0,{2 * r} A{r},{r} 0 0 1 0,0" dur="6s" repeatCount="indefinite"/>'
+            "</circle></svg>")
+    return module(out)
+
+
+def persona_card(label, question, a1, a2):
+    """三种情况之一：轻点卡片，看到这种情况在课上怎么被对待。完成态兜底 = 直接显示答案。"""
+    W, H = 343, 136
+    return (svg_open(W, H, "margin-top:10px;")
+            # L1 完成态
+            + '<g fill-opacity="1">' + fade(0, 1, "click+0.12s", "0.45s")
+            + f'<rect x="0" y="0" width="{W}" height="{H}" rx="18" fill="{BLUE_SOFT}" pointer-events="none"/>'
+            # L2 初始态（含热区）
             + '<g fill-opacity="0">' + fade(1, 0, "click", "0.3s")
-            + pulse(x, y, 10, 30)
-            + f'<circle cx="{x}" cy="{y}" r="10" fill="#FFFFFF" opacity="0.95"/>'
-            + f'<circle cx="{x}" cy="{y}" r="5" fill="{YELLOW}"/>'
-            + f'<rect x="{pill_x}" y="{y - 11}" width="48" height="22" rx="11" fill="#FFFFFF" opacity="0.92"/>'
-            + f'<text x="{pill_x + 24}" y="{y + 4.5}" font-size="12" fill="{INK}" text-anchor="middle" letter-spacing="1">轻点</text>'
-            + f'<circle cx="{x}" cy="{y}" r="42" fill="#000000" fill-opacity="0" pointer-events="all" style="cursor:pointer;"/>'
-            + "</g></g></svg>")
+            + f'<rect x="0" y="0" width="{W}" height="{H}" rx="18" fill="{TILE}" pointer-events="none"/>'
+            + t(20, 104, "轻点，看看课上怎么做", 13, MUTED, ls=1, extra=' pointer-events="none"')
+            + f'<circle cx="311" cy="34" r="13" fill="{BLUE}"/>'
+            + '<rect x="305" y="33.25" width="12" height="1.5" fill="#FFFFFF"/>'
+            + '<rect x="310.25" y="28" width="1.5" height="12" fill="#FFFFFF"/>'
+            + hit() + "</g>"
+            + t(20, 34, label, 12, BLUE, 600, ls=2, extra=' fill-opacity="1" pointer-events="none"')
+            + t(20, 66, question, 18, INK, 700, ls=0.5, extra=' fill-opacity="1" pointer-events="none"')
+            + t(20, 100, a1, 15, BODY, ls=0.3, extra=' pointer-events="none"')
+            + t(20, 122, a2, 15, BODY, ls=0.3, extra=' pointer-events="none"')
+            + "</g></svg>")
 
 
-def question_card():
-    """课堂上的一道题：轻点后四个问题依次浮现（文字取自第 8 期课堂屏幕）。"""
-    W, H = 343, 404
-    rows = ["产品是什么？", "谁可能会买？", "用户可能在什么情况下使用？", "这个产品有什么值得展示？"]
+def pipeline():
+    """一条视频的完整流程：轻点后黄线自上而下走完六步，最后落到「自己上手」。"""
+    W, H, x0, y0, gap = 343, 520, 40, 160, 50
+    steps = ["挑选商品", "构思内容", "布置灯光", "拍摄", "剪辑", "发布"]
+    span = gap * (len(steps) - 1)
     out = (svg_open(W, H)
-           + f'<text x="24" y="46" font-size="12" font-weight="600" fill="{YELLOW}" letter-spacing="3">课堂上的一道题</text>'
-           + f'<text x="24" y="98" font-size="28" font-weight="700" fill="#FFFFFF" letter-spacing="0.5">这个产品</text>'
-           + f'<text x="24" y="138" font-size="28" font-weight="700" fill="#FFFFFF" letter-spacing="0.5">到底有什么可以卖？</text>'
-           + '<rect x="24" y="166" width="295" height="1" fill="#FFFFFF" fill-opacity="1" opacity="0.16"/>'
-           # 提示层
-           + '<g fill-opacity="0">' + fade(1, 0, "click", "0.25s")
-           + pulse(W / 2, 240, 6, 22)
-           + f'<circle cx="{W / 2}" cy="240" r="6" fill="{YELLOW}"/>'
-           + f'<text x="{W / 2}" y="282" font-size="14" fill="#C7C7CC" text-anchor="middle" letter-spacing="1">轻点卡片，拆开这道题</text>')
-    for i, t in enumerate(rows):
-        y = 212 + 46 * i
-        b = f"click+{0.12 + 0.16 * i:.2f}s"
-        out += ('<g fill-opacity="1">' + fade(0, 1, b, "0.5s") + slide(0, 12, b, "0.7s")
-                + f'<text x="24" y="{y}" font-size="13" font-weight="600" fill="{YELLOW}" letter-spacing="1">0{i + 1}</text>'
-                + f'<text x="62" y="{y}" font-size="16" fill="#FFFFFF" letter-spacing="0.5">{t}</text>')
-        if i < len(rows) - 1:
-            out += f'<rect x="62" y="{y + 19}" width="257" height="1" fill="#FFFFFF" opacity="0.1"/>'
-    out += hit() + "</g>" * len(rows) + "</g></svg>"
-    return dark_module(out, glow_at="100% 0%")
+           + t(24, 44, "一条视频的完整流程", 12, YELLOW, 600, ls=3)
+           + t(24, 82, "从挑选商品，", 24, "#FFFFFF", 700, ls=0.5)
+           + t(24, 114, "到最后发布。", 24, "#FFFFFF", 700, ls=0.5)
+           + f'<rect x="{x0 - 0.75}" y="{y0}" width="1.5" height="{span}" fill="#26304A"/>')
+    for i, s in enumerate(steps):
+        y = y0 + gap * i
+        out += (f'<circle cx="{x0}" cy="{y}" r="6" fill="{NIGHT}" stroke="#3A4562" stroke-width="1.5"/>'
+                + t(66, y + 6, s, 17, "#4E5873", 600, ls=1)
+                + t(319, y + 5, f"0{i + 1}", 12, "#3A4562", ls=1))
+    # 进度线（stroke-dashoffset 可继承，写在 Lp 上）
+    out += (f'<g stroke-dashoffset="0"><set attributeName="stroke-dashoffset" to="{span}" begin="0s"/>'
+            f'<animate attributeName="stroke-dashoffset" values="{span};0" dur="3s" begin="click" fill="freeze" restart="never"/>'
+            f'<line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y0 + span}" stroke="{YELLOW}" stroke-width="2" stroke-dasharray="{span}"/>')
+    for i, s in enumerate(steps):
+        y = y0 + gap * i
+        out += ('<g fill-opacity="1">' + fade(0, 1, f"click+{0.6 * i:.1f}s", "0.3s")
+                + f'<circle cx="{x0}" cy="{y}" r="13" fill="{YELLOW}" opacity="0.22"/>'
+                + f'<circle cx="{x0}" cy="{y}" r="6" fill="{YELLOW}"/>'
+                + t(66, y + 6, s, 17, "#FFFFFF", 600, ls=1)
+                + t(319, y + 5, f"0{i + 1}", 12, YELLOW, ls=1))
+    out += ('<g fill-opacity="1">' + fade(0, 1, "click+3.3s", "0.5s")
+            + t(24, 458, "看完之后，同学们用现场的商品和设备，", 14, "#C9CFDD", ls=0.5)
+            + t(24, 482, "自己上手拍、自己剪。", 14, "#FFFFFF", 600, ls=0.5)
+            + '<g fill-opacity="0">' + fade(1, 0, "click", "0.3s")
+            + '<rect x="24" y="444" width="295" height="46" rx="23" fill="#FFFFFF" opacity="0.08"/>'
+            + f'<path d="M44 459 L56 467 L44 475 Z" fill="{YELLOW}"/>'
+            + t(68, 472, "轻点，把流程走一遍", 15, "#FFFFFF", 600, ls=1)
+            + hit() + "</g></g>"
+            + "</g>" * len(steps) + "</g></svg>")
+    return (f'<section style="margin-top:26px;border-radius:22px;overflow:hidden;line-height:0;font-size:0;'
+            f'background-color:{NIGHT};background-image:radial-gradient(90% 60% at 100% 0%,'
+            f'rgba(0,60,172,0.6) 0%,rgba(0,60,172,0) 70%);">{out}</section>')
 
 
-def checklist():
-    """自测清单：每行独立轻点打勾（静态兜底为未勾选）。"""
-    rows = ["想做 TikTok 跨境电商，但还没真正上手",
-            "看过不少教程，一到自己操作就卡住",
-            "希望有人在旁边，看着你做、帮你找问题",
-            "更想用真实的产品练，而不只听概念"]
-    out = ""
-    for i, t in enumerate(rows):
-        W, H = 343, 60
-        out += (svg_open(W, H)
-                + f'<rect x="0" y="0" width="{W}" height="{H}" fill="{DARK}" fill-opacity="1"/>'
-                + '<circle cx="34" cy="30" r="11" fill="none" stroke="#55555C" stroke-width="1.5"/>'
-                + f'<text x="58" y="35" font-size="15" fill="{D_TEXT}" letter-spacing="0.3">{t}</text>'
-                + ('' if i == len(rows) - 1 else
-                   f'<rect x="58" y="59" width="{W - 58}" height="1" fill="#FFFFFF" opacity="0.08"/>')
-                + '<g fill-opacity="0" stroke-dashoffset="20">'
-                + '<animate attributeName="fill-opacity" values="0;1" dur="0.25s" begin="click" fill="freeze" restart="never"/>'
-                + '<animate attributeName="stroke-dashoffset" values="20;0" dur="0.35s" begin="click+0.1s" fill="freeze" restart="never"/>'
-                + f'<circle cx="34" cy="30" r="11.75" fill="{YELLOW}"/>'
-                + f'<path d="M28.5 30.5 L32.5 34.5 L39.5 26.5" fill="none" stroke="{DARK}" stroke-width="2.2" '
-                  'stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="20" pointer-events="none"/>'
-                + f'<rect x="0" y="0" width="{W}" height="{H}" fill="#000000" fill-opacity="0" pointer-events="all" style="cursor:pointer;"/>'
-                + "</g></svg>")
-    return (f'<section style="margin-top:26px;border-radius:24px;overflow:hidden;line-height:0;'
-            f'font-size:0;background-color:{DARK};padding:10px 0;">{out}</section>')
-
-
-def swipe_hint():
-    return p('左右滑动'
-             + f'<svg {SVG_NS} viewBox="0 0 40 12" width="34" height="10" '
-               'style="display:inline-block;width:34px;height:10px;vertical-align:middle;margin-left:8px;">'
-             + '<g><animateTransform attributeName="transform" type="translate" values="0 0;6 0;0 0" '
-               'dur="1.6s" repeatCount="indefinite"/>'
-             + f'<rect x="0" y="5.25" width="30" height="1.5" fill="{GRAY}"/>'
-             + f'<path d="M28 1.5 L34 6 L28 10.5" fill="none" stroke="{GRAY}" stroke-width="1.5" '
-               'stroke-linecap="round" stroke-linejoin="round"/></g></svg>',
-             f"margin-top:26px;font-size:12px;line-height:1;color:{GRAY};letter-spacing:2px;text-align:right;")
-
-
-def gallery(items):
-    """横滑相册（overflow-x 滚动，纯 HTML，无需交互脚本）。"""
-    cards = ""
-    for i, (name, alt, tag, line) in enumerate(items):
-        mr = "0" if i == len(items) - 1 else "12px"
-        cards += (f'<section style="display:inline-block;width:76%;vertical-align:top;margin-right:{mr};'
-                  'white-space:normal;font-size:16px;line-height:1.6;">'
-                  f'<section style="border-radius:18px;overflow:hidden;line-height:0;font-size:0;">{img(name, alt)}</section>'
-                  + p(f'<span style="color:{BLUE};font-weight:600;">{tag}</span>',
-                      "margin-top:12px;font-size:12px;letter-spacing:2px;")
-                  + p(line, f"margin-top:4px;font-size:15px;line-height:1.6;color:{INK};")
-                  + "</section>")
-    return (swipe_hint()
-            + '<section style="margin-top:12px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'
-              f'-webkit-overflow-scrolling:touch;font-size:0;line-height:0;padding-bottom:6px;">{cards}</section>')
+def after_timeline():
+    """五天之后：实线是线下五天，虚线一直往后流，下面是课后一直保留的三样东西。"""
+    W, H = 343, 268
+    xs = [30 + 33.5 * i for i in range(5)]
+    out = (svg_open(W, H, "pointer-events:none;")
+           + f'<rect x="0" y="0" width="{W}" height="{H}" rx="22" fill="{TILE}"/>'
+           + t(24, 40, "线下 5 天", 12, BLUE, 600, ls=2)
+           + t(190, 40, "之后", 12, MUTED, 600, ls=2)
+           + f'<line x1="{xs[0]}" y1="76" x2="{xs[-1]}" y2="76" stroke="{BLUE}" stroke-width="3" stroke-linecap="round"/>'
+           + f'<line x1="{xs[-1] + 12}" y1="76" x2="320" y2="76" stroke="{BLUE}" stroke-width="2" '
+             'stroke-linecap="round" stroke-dasharray="1 7" stroke-opacity="0.7">'
+             '<animate attributeName="stroke-dashoffset" values="0;-8" dur="0.7s" repeatCount="indefinite"/></line>')
+    for i, x in enumerate(xs):
+        out += (f'<circle cx="{x}" cy="76" r="4.5" fill="{BLUE}"/>'
+                + t(x, 102, str(12 + i), 11, MUTED, anchor="middle"))
+    out += (f'<circle cx="{xs[-1]}" cy="76" r="8" fill="{YELLOW}" opacity="0.5">'
+            '<animate attributeName="r" values="6;16" dur="1.8s" repeatCount="indefinite"/>'
+            '<animate attributeName="opacity" values="0.6;0" dur="1.8s" repeatCount="indefinite"/></circle>'
+            + f'<circle cx="{xs[-1]}" cy="76" r="5" fill="{YELLOW}"/>')
+    for i, (a, b) in enumerate([("线上课程", "一直保留"), ("学员答疑群", "随时提问，持续解答"),
+                                ("专题讲解", "针对大家普遍关心的问题")]):
+        y = 148 + 40 * i
+        out += (f'<rect x="24" y="{y - 26}" width="295" height="1" fill="{LINE}"/>'
+                + t(24, y, a, 15, INK, 600, ls=0.5) + t(319, y, b, 13, MUTED, anchor="end", ls=0.3))
+    return module(out + "</svg>")
 
 
 # ── 正文 ─────────────────────────────────────────────────
 def article():
-    hero = (f'<section style="border-radius:26px;overflow:hidden;background-color:{DARK};'
-            'background-image:radial-gradient(120% 70% at 100% 0%,rgba(0,60,172,0.6) 0%,rgba(0,60,172,0) 62%);'
-            'padding:28px 22px 22px;">'
-            f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:96px;height:auto;margin:0;">'
-            + p("实操现场 · VOL.08",
-                f"margin-top:44px;font-size:12px;line-height:1.4;letter-spacing:3px;color:{YELLOW};font-weight:600;")
-            + p("从听懂，<br>到做出来。",
-                "margin-top:12px;font-size:36px;line-height:1.22;color:#FFFFFF;font-weight:700;letter-spacing:-0.3px;")
-            + p("TikTok 跨境电商线下实操班 · 第 8 期",
-                f"margin-top:14px;font-size:14px;line-height:1.6;color:{D_MUTED};letter-spacing:0.5px;")
-            + hero_timeline()
-            + photo("01-hero.jpg", "第 8 期课堂，老师在白板前讲解", radius=16, top=22)
+    hero = (f'<section style="border-radius:28px;overflow:hidden;background-color:{NIGHT};'
+            'background-image:radial-gradient(120% 70% at 100% 0%,rgba(0,60,172,0.62) 0%,rgba(0,60,172,0) 62%);'
+            'padding:26px 22px 22px;">'
+            '<section style="display:flex;align-items:center;justify-content:space-between;">'
+            f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:88px;height:auto;margin:0;">'
+            + p("TikTok 跨境电商", f"font-size:11px;line-height:1;color:{NIGHT_TEXT};letter-spacing:2px;")
+            + "</section>"
+            + hero_numeral()
+            + p("五天，<br>把路走通。", "margin-top:18px;font-size:34px;line-height:1.28;color:#FFFFFF;"
+                                      "font-weight:700;letter-spacing:0.5px;")
+            + p("第 8 期线下实操课 · 回顾", f"margin-top:12px;font-size:14px;line-height:1.6;color:{NIGHT_TEXT};letter-spacing:1px;")
+            + photo("00-hero.jpg", "第 8 期课堂，老师在写满的白板前讲解", top=24, radius=14)
             + "</section>")
 
     intro = chapter(
-        p("第 8 期，开班了。",
-          f"font-size:21px;line-height:1.5;color:{INK};font-weight:700;letter-spacing:0.2px;"),
-        body("从这一期起，每一期课程结束，我们都会在这里留一份记录。"),
-        body("不写流程，不列课表。只把课堂里真实发生的事摊开给你看。"
-             "如果你正在犹豫要不要来，你想知道的，大概都在下面。", 12),
-        switch_module(),
+        p("10 月 12 日到 16 日，<br>第 8 期线下实操课结束了。",
+          f"font-size:21px;line-height:1.6;color:{INK};font-weight:700;letter-spacing:0.3px;"),
+        body("这期来的同学，情况各不相同。", top=22),
+        f'<section style="margin-top:18px;">' + rows([
+            ("从零开始", "有人之前没接触过跨境电商，想从零开始了解；"),
+            ("已经开店", "有人店已经开了一段时间，但一直没有起色；"),
+            ("工厂 · 品牌方", "也有工厂和品牌方，带着自家产品过来，希望团队能尽快把 TikTok 这条路跑通。"),
+        ]) + "</section>",
+        body("大家来的原因不一样，", "但遇到的问题很相似：", top=26),
+        p(f"网上的东西看了不少，<br>真要自己动手，<br>{mark('还是不知道该怎么做。')}",
+          f"margin-top:14px;font-size:21px;line-height:1.65;color:{INK};font-weight:700;letter-spacing:0.3px;"),
+        body("这五天，我们就从这里开始。", top=18),
         top=44)
 
     ch1 = chapter(
-        eyebrow("01", "起点"),
-        h2("基础不好，<br>跟得上吗？"),
-        body("这是很多人报名前最担心的事。"),
-        body("所以课堂不从结论讲起，而是从第一个概念讲起："
-             f'<span style="color:{INK};font-weight:600;">屏幕上一步一步演示，白板上一笔一笔拆开。</span>', 12),
-        body("哪一步没跟上，当场问，当场再讲一遍。", 12),
-        photo("02-screen.jpg", "老师对照屏幕讲解，学员边听边记", "屏幕演示，一步一步来"),
-        photo("03-whiteboard.jpg", "写满的白板与正在讲解的老师", "轻点照片上的黄点",
-              overlay=hotspot(400, 300, 296, 172, "白板写满，是因为没有一步被跳过。"), top=14))
+        opener(1, "看了那么多教程，", "怎么还是理不清？"),
+        photo("01-whiteboard.jpg", "老师在白板前讲解", "课堂 · 10.12"),
+        body("网上的内容很多，但大多是零散的。",
+             "今天看一个选品技巧，明天看一个上架教程，始终串不成一条完整的路。", top=24),
+        body(strong("所以课上没有急着讲技巧，而是把整件事从头到尾梳理一遍：")),
+        f'<section style="margin-top:14px;">' + rows([
+            ("01", "这门生意是怎么运转的"), ("02", "每一步在做什么"), ("03", "前后怎么衔接"),
+        ], label_w=40) + "</section>",
+        body("讲解过程中随时可以提问，有不清楚的地方当场讲明白再往下走。", top=20))
 
     ch2 = chapter(
-        eyebrow("02", "上手"),
-        h2("听懂了，<br>可一上手就卡住？"),
-        body("这是最常见的问题，也是课堂上最花时间的地方。"),
-        body(f'<span style="color:{INK};font-weight:600;">讲完，就动手。</span>'
-             "电脑打开，手机拿出来，在自己的设备上，把刚才那一步完整走一遍。", 12),
-        body("卡住的地方，正是老师要过来的地方。", 12),
-        photo("04-hands-on.jpg", "学员在电脑和手机上实际操作", "轻点照片上的黄点",
-              overlay=hotspot(400, 300, 196, 200, "讲完就动手，在自己的设备上做一遍。", "top")))
-
-    quote = (f'<section style="margin-top:80px;text-align:center;">'
-             + p(f'讲完就<span style="color:{BLUE};">做</span>，<br>做完再<span style="color:{BLUE};">讲</span>。',
-                 f"font-size:31px;line-height:1.4;color:{INK};font-weight:700;letter-spacing:1px;")
-             + p("这是课堂上反复发生的事。",
-                 f"margin-top:14px;font-size:13px;line-height:1.6;color:{GRAY};letter-spacing:1px;")
-             + "</section>")
+        opener(2, "看的时候都懂，", "自己一做就出问题"),
+        photo("02-hands-on.jpg", "学员在自己的电脑上实操，老师在旁指导", "课堂 · 10.16"),
+        body("看别人操作很顺，轮到自己，往往不是这里填错，就是那里找不到入口。", top=24),
+        body(f"所以这五天里，{mark('大部分时间是同学们在自己的电脑上实际操作。')}"),
+        body("老师讲完一步，大家跟着做一步，老师逐个查看每个人的操作，有报错、有卡住的地方，就过去一起看、一起解决。"),
+        loop_diagram(),
+        body(strong("每一步都自己亲手做过，<br>回去再操作时会顺很多。"), top=22))
 
     ch3 = chapter(
-        eyebrow("03", "带教"),
-        h2("现场，<br>到底怎么带？"),
-        body("不是一个人站在台上讲到底。"),
-        body("老师会坐到你对面，凑过来看你的手机屏幕，在灯前和你当面聊。"
-             f'<span style="color:{INK};font-weight:600;">同一个问题，换一种说法再讲；同一个操作，看着你做完。</span>', 12),
-        gallery([
-            ("06-table.jpg", "老师与学员围桌交流", "围桌", "面对面，把问题摊开说。"),
-            ("07-phone.jpg", "老师与学员对着手机交流", "手机前", "看着你的屏幕，指出卡在哪。"),
-            ("08-light.jpg", "在柔光灯前现场交流", "灯前", "在现场，当面讲清楚。"),
-        ]))
+        opener(3, "我的情况，", "跟别人不太一样"),
+        p("左右滑动 →", f"margin-top:26px;font-size:12px;line-height:1;color:{MUTED};letter-spacing:2px;text-align:right;"),
+        f'<section style="margin-top:10px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'
+        f'-webkit-overflow-scrolling:touch;font-size:0;line-height:0;">'
+        + "".join(
+            f'<section style="display:inline-block;width:{w};vertical-align:top;margin-right:{mr};white-space:normal;">'
+            f'<section style="border-radius:16px;overflow:hidden;line-height:0;font-size:0;">{img(n, a)}</section>'
+            + caption(c) + "</section>"
+            for n, a, c, w, mr in [("03-table.jpg", "老师与学员围桌一对一交流", "一对一 · 10.14", "74%", "10px"),
+                                   ("03-phone.jpg", "老师与学员对着手机交流", "一对一 · 10.15", "74%", "0")])
+        + "</section>",
+        body("刚起步的人和已经开店的人，需要的答案不一样；", "工厂关心的问题，和个人卖家也不一样。", top=24),
+        body(f"所以除了集体授课，课程中也安排了{mark('一对一的交流时间')}。"),
+        p("你是哪一种？轻点看看。", f"margin-top:30px;font-size:13px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:2px;"),
+        f'<section style="margin-top:6px;line-height:0;font-size:0;">'
+        + persona_card("从零开始", "我该从哪儿开始？", "先把整件事从头到尾梳理一遍：", "怎么运转，每一步做什么，前后怎么衔接。")
+        + persona_card("已经开店", "店开了，为什么一直没起色？", "打开自己的店铺后台，", "和老师一起看数据、找问题。")
+        + persona_card("工厂 · 品牌方", "我的产品，适合怎么卖？", "带来自家产品，聊这个产品", "适合怎么卖、卖给谁。")
+        + "</section>",
+        body(strong("针对每个人的实际情况，给出具体的建议。"), top=22))
 
     ch4 = chapter(
-        eyebrow("04", "落地"),
-        h2("讲的东西，<br>能落到具体产品上吗？"),
-        body("课堂上讲的每一个方法，最后都要回到一件具体的商品上。"),
-        body("比如这一页。屏幕上放的是一台风扇，问题只有一个。", 12),
-        photo("05-question.jpg", "课堂屏幕：这个产品到底有什么可以卖？", "课堂实拍 · 屏幕局部"),
-        question_card(),
-        body("四个问题，看起来都不难。可真把一件商品按这个顺序答一遍，"
-             "你就会知道它该拍什么、写给谁、放进什么场景里讲。", 26),
-        body(f'<span style="color:{INK};font-weight:600;">这就是落地。</span>', 12))
+        opener(4, "真正在做的团队，", "平时是怎么做内容的？"),
+        photo("04-studio.jpg", "公司内容团队的拍摄现场", "拍摄间 · 10.14"),
+        body("我们的每一期线下课，都在公司里上。",
+             f"同学们上课、实操的地方，{mark('也是公司团队每天工作的地方。')}", top=24),
+        body("所以除了听课，大家还能直接看到一家 TikTok 跨境电商公司日常是怎么运转的。"),
+        body("以内容为例，我们带大家完整看了一遍员工平时的工作流程：每个环节怎么做、用什么工具、需要注意什么。"),
+        pipeline(),
+        body("有问题可以直接问身边正在做这件事的同事。", top=22))
 
     ch5 = chapter(
-        eyebrow("05", "判断"),
-        h2("这种方式，<br>适合我吗？"),
-        body("下面四句话，说中你的，就轻点勾上。"),
-        checklist(),
-        body("勾上了不止一条？那这样的课堂，值得你来现场看一看。", 22))
+        opener(5, "五天，", "只是一个开始"),
+        photo("05-classroom.jpg", "第 8 期课堂全景", "课堂 · 10.12"),
+        body("五天能解决的问题是有限的。",
+             "真正开始做店以后，还会遇到选品、运营、内容、数据等各种新情况，很多问题要在实际操作中才会出现。", top=24),
+        body(strong("所以课程结束并不是结束。")),
+        body(f"{mark('线上课程和学员答疑群会一直保留')}，同学们回去实操中遇到的问题，可以随时在群里提出，我们会持续解答。",
+             "对于大家普遍关心的问题，后续也会安排专门的讲解。"),
+        after_timeline())
 
-    outro = (f'<section style="margin-top:80px;border-radius:26px;overflow:hidden;background-color:{DARK};'
-             'background-image:radial-gradient(110% 70% at 0% 100%,rgba(0,60,172,0.55) 0%,rgba(0,60,172,0) 60%);'
-             'padding:38px 24px 26px;">'
-             + p("VOL.08 · 2026.10.12 — 10.16",
-                 f"font-size:12px;line-height:1.4;letter-spacing:2.5px;color:{YELLOW};font-weight:600;")
-             + p("每一期，<br>都在这里。",
-                 "margin-top:14px;font-size:30px;line-height:1.3;color:#FFFFFF;font-weight:700;")
-             + p("云拓会是森拓旗下的 TikTok 跨境电商实操培训品牌。"
-                 "从第 8 期开始，每一期课堂，我们都会在这里原样记录。",
-                 f"margin-top:16px;font-size:15px;line-height:1.85;color:{D_MUTED};letter-spacing:0.4px;text-align:justify;")
-             + '<section style="margin-top:26px;height:1px;line-height:1px;font-size:0;'
+    outro = (f'<section style="margin-top:88px;border-radius:28px;overflow:hidden;background-color:{NIGHT};'
+             'background-image:radial-gradient(110% 70% at 0% 100%,rgba(0,60,172,0.6) 0%,rgba(0,60,172,0) 60%);'
+             'padding:40px 24px 26px;">'
+             + p("线下的五天，<br>是帮大家把路走通；<br>"
+                 f'<span style="color:{YELLOW};">之后的路，<br>我们继续一起走。</span>',
+                 "font-size:27px;line-height:1.5;color:#FFFFFF;font-weight:700;letter-spacing:0.5px;")
+             + '<section style="margin-top:34px;height:1px;line-height:1px;font-size:0;'
                'background-color:rgba(255,255,255,0.14);">&nbsp;</section>'
-             + p("想了解课程，欢迎在公众号后台给我们留言。",
-                 "margin-top:22px;font-size:15px;line-height:1.7;color:#FFFFFF;letter-spacing:0.4px;")
-             + '<section style="margin-top:34px;display:flex;align-items:center;justify-content:space-between;">'
-             + f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:84px;height:auto;margin:0;">'
-             + p("实操现场", f"font-size:12px;line-height:1;color:{D_MUTED};letter-spacing:3px;")
+             + p(f'<span style="display:inline-block;padding:7px 14px;border-radius:999px;background-color:{YELLOW};'
+                 f'color:{INK};font-size:12px;line-height:1;font-weight:700;letter-spacing:2px;">第 9 期 · 招生中</span>',
+                 "margin-top:26px;line-height:1;")
+             + p("第 9 期线下实操课正在招生中，<br>想了解的朋友，<br>欢迎后台留言或私信我们。",
+                 "margin-top:14px;font-size:15px;line-height:1.8;color:#FFFFFF;letter-spacing:0.4px;")
+             + '<section style="margin-top:36px;display:flex;align-items:center;justify-content:space-between;">'
+             + f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:80px;height:auto;margin:0;">'
+             + p("森拓旗下 · 跨境电商实操培训", f"font-size:11px;line-height:1;color:{NIGHT_TEXT};letter-spacing:1px;")
              + "</section></section>")
 
-    foot = p("本文照片均摄于云拓会第 8 期线下课堂",
-             f"margin-top:18px;font-size:12px;line-height:1.6;color:{GRAY};text-align:center;letter-spacing:0.5px;")
+    foot = p("本文照片均摄于云拓会第 8 期线下实操课",
+             f"margin-top:18px;font-size:12px;line-height:1.6;color:{MUTED};text-align:center;letter-spacing:1px;")
 
     return (f'<section style="margin:0;padding:0;font-family:{FONT};color:{BODY};'
-            'font-size:16px;line-height:1.85;word-wrap:break-word;-webkit-font-smoothing:antialiased;">'
-            + hero + intro + ch1 + ch2 + quote + ch3 + ch4 + ch5 + outro + foot + "</section>")
+            'font-size:16px;line-height:1.9;word-wrap:break-word;-webkit-font-smoothing:antialiased;">'
+            + hero + intro + ch1 + ch2 + ch3 + ch4 + ch5 + outro + foot + "</section>")
 
 
 def compact(s):
@@ -422,34 +424,32 @@ def lint(fragment):
 
 # ── 工具页 ───────────────────────────────────────────────
 def tool_page(fragment, img_bases, full_doc):
-    head = (TOOL_HEAD.replace("{{CSS}}", TOOL_CSS))
     preview = fragment.replace(IMG, "img/")
     payload = json.dumps({"html": fragment, "bases": img_bases}, ensure_ascii=False).replace("</", "<\\/")
-    page = (head + TOOL_BODY.replace("{{ARTICLE}}", preview)
+    page = (TOOL_HEAD.replace("{{CSS}}", TOOL_CSS)
+            + TOOL_BODY.replace("{{ARTICLE}}", preview).replace("{{TITLE}}", TITLE).replace("{{DIGEST}}", DIGEST)
             + f"<script>const PAYLOAD = {payload};</script>" + TOOL_JS)
     if full_doc:
-        page = ('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+        return ('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
                 '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
                 + page.replace("<!--/head-->", "</head><body>", 1) + "</body></html>")
-    else:
-        page = page.replace("<!--/head-->", "", 1)
-    return page
+    return page.replace("<!--/head-->", "", 1)
 
 
-TOOL_HEAD = """<title>实操现场 Vol.08</title>
+TOOL_HEAD = """<title>第 8 期实操课回顾</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>{{CSS}}</style>
 <!--/head-->"""
 
 TOOL_CSS = """
 /* 布局：左侧 375 宽手机屏还原公众号正文，右侧为发布控制台；窄屏上下堆叠。单一深色审稿台主题。 */
-:root{--bg:#0D0F13;--panel:#15181E;--line:#262A32;--fg:#ECEDEF;--muted:#959AA5;--accent:#FFC833;--blue:#003CAC;--blue-lt:#6F9BFF;--ok:#4CD38A;--warn:#FFB547;--screen:#FFFFFF;
+:root{--bg:#0D0F13;--panel:#15181E;--line:#262A32;--fg:#ECEDEF;--muted:#959AA5;--accent:#FFC833;--blue-lt:#6F9BFF;--ok:#4CD38A;--warn:#FFB547;--screen:#FFFFFF;
 --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{background:var(--bg);color:var(--fg)}
 body{margin:0;font:14px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
 .wrap{max-width:1120px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--line)}
+header.top{padding-bottom:22px;border-bottom:1px solid var(--line)}
 .kicker{font:600 11px/1 var(--mono);letter-spacing:.18em;color:var(--accent);text-transform:uppercase}
 h1{margin:10px 0 0;font-size:26px;line-height:1.2;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
 .sub{color:var(--muted);margin:6px 0 0}
@@ -467,7 +467,7 @@ h1{margin:10px 0 0;font-size:26px;line-height:1.2;font-weight:700;letter-spacing
 .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;min-width:0}
 .card h2{margin:0 0 4px;font-size:15px;font-weight:600}
 .card p{margin:0;color:var(--muted)}
-.btn{appearance:none;border:0;border-radius:12px;padding:13px 18px;font:600 15px/1 var(--sans);cursor:pointer;transition:transform .12s ease,filter .12s}
+.btn{appearance:none;border:0;border-radius:12px;padding:13px 18px;font:600 15px/1 var(--sans);cursor:pointer;transition:transform .12s ease}
 .btn:active{transform:scale(.98)}
 .btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .primary{background:var(--accent);color:#111;width:100%}
@@ -493,24 +493,22 @@ ol.steps b{color:var(--fg);font-weight:600}
 .meta div{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
 .meta span{color:var(--fg);min-width:0}
 @media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}.panel{position:static}}
-@media (max-width:480px){.phone{padding:0;border-radius:0;box-shadow:none;background:transparent}.screen{border-radius:18px}.bar{display:none}.scroll{height:auto;overflow:visible}}
+@media (max-width:480px){.phone{padding:0;border-radius:0;box-shadow:none;background:transparent;width:auto;max-width:none;margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px)))}.screen{border-radius:0}.bar{display:none}.scroll{height:auto;overflow:visible}}
 @media (prefers-reduced-motion:reduce){.btn{transition:none}}
 """
 
 TOOL_BODY = """<div class="wrap">
 <header class="top">
-  <div>
-    <div class="kicker">云拓会 · 实操现场 · Vol.08</div>
-    <h1>从听懂，到做出来。</h1>
-    <p class="sub">公众号正文审稿与发布台。左侧是正文在手机上的样子，可以直接点交互；右侧负责复制进公众号。</p>
-  </div>
+  <div class="kicker">云拓会 · 第 8 期线下实操课 · 公众号正文</div>
+  <h1>{{TITLE}}</h1>
+  <p class="sub">左侧是正文在手机上的样子，交互可以直接点；右侧负责复制进公众号。</p>
 </header>
 <div class="grid">
   <section aria-label="手机预览">
     <div class="phone"><div class="screen">
       <div class="bar"><span>9:41</span><i></i><span>●●●</span></div>
-      <div class="scroll" id="scroll">
-        <div class="wx"><b>第 8 期｜从听懂，到做出来</b><span>云拓会 · 实操现场</span></div>
+      <div class="scroll">
+        <div class="wx"><b>{{TITLE}}</b><span>云拓会</span></div>
         <div class="article" id="article">{{ARTICLE}}</div>
       </div>
     </div></div>
@@ -518,7 +516,7 @@ TOOL_BODY = """<div class="wrap">
   <aside class="panel">
     <div class="card">
       <h2>复制到公众号</h2>
-      <p>在公众号后台新建图文，光标放进正文区，粘贴即可。</p>
+      <p>在公众号后台新建文章，光标放进正文区，粘贴即可。</p>
       <label class="f" for="base">图片地址（粘贴后公众号会自动转存）</label>
       <select id="base"></select>
       <input type="text" id="custom" placeholder="自定义前缀，例如 https://你的图床/vol08/" hidden>
@@ -530,34 +528,32 @@ TOOL_BODY = """<div class="wrap">
       <div class="status" id="status" role="status" aria-live="polite"></div>
     </div>
     <div class="card">
-      <h2>发布步骤</h2>
-      <ol class="steps">
-        <li>公众号后台 → <b>新的创作 → 文章</b>，标题与摘要见下方。</li>
-        <li>点 <b>复制正文</b>，在编辑器正文区 <b>Ctrl/⌘ + V</b>。</li>
-        <li>等待图片转存完成；若有图片显示失败，点该图 → <b>替换</b>，从 <b>img/</b> 文件夹选同名图片。</li>
-        <li><b>保存为草稿 → 预览 → 发送到手机</b>，按右下清单在 iPhone 与安卓各点一遍。</li>
-        <li>交互全部正常后再群发。</li>
-      </ol>
-    </div>
-    <div class="card">
       <h2>标题与摘要</h2>
       <div class="meta">
-        <div><span id="t1">第 8 期｜从听懂，到做出来</span><button class="btn ghost" data-copy="t1" type="button">复制</button></div>
-        <div><span id="t2">不写流程，不列课表。把第 8 期课堂里真实发生的事，摊开给你看。</span><button class="btn ghost" data-copy="t2" type="button">复制</button></div>
+        <div><span id="t1">{{TITLE}}</span><button class="btn ghost" data-copy="t1" type="button">复制</button></div>
+        <div><span id="t2">{{DIGEST}}</span><button class="btn ghost" data-copy="t2" type="button">复制</button></div>
       </div>
+    </div>
+    <div class="card">
+      <h2>发布步骤</h2>
+      <ol class="steps">
+        <li>公众号后台 → <b>新的创作 → 文章</b>，填入上面的标题与摘要。</li>
+        <li>点 <b>复制正文</b>，在编辑器正文区 <b>Ctrl/⌘ + V</b>。</li>
+        <li>等图片转存完成；若有破图，点该图 → <b>替换</b>，从 <b>img/</b> 选同名图片。</li>
+        <li><b>保存为草稿 → 预览 → 发送到手机</b>，按下方清单在 iPhone 与安卓各点一遍。</li>
+      </ol>
     </div>
     <div class="card">
       <h2>效果与验证</h2>
       <div class="matrix">
-        <div class="m"><strong>版式：字号层级、留白、圆角照片、深色模块</strong><span class="chip c-ok">本地已演示</span><em>纯内联样式，公众号正常保留。深色模块的底色画在 SVG 里，不受公众号深色模式改色影响。</em></div>
-        <div class="m"><strong>开头：五天进度线依次点亮</strong><span class="chip c-wx">SMIL 自动播放</span><em>加载即播放，位于首屏。</em></div>
-        <div class="m"><strong>开关：听懂 → 做到</strong><span class="chip c-wx">SMIL begin=click</span><em>热区放在最深层，点击冒泡驱动三层动画；不依赖 id。</em></div>
-        <div class="m"><strong>照片热点注释（2 处）</strong><span class="chip c-wx">SVG 叠在图片上</span><em>用负 margin 叠放，不用绝对定位；热点外的区域仍可点开大图。</em></div>
-        <div class="m"><strong>横滑相册</strong><span class="chip c-wx">overflow-x 滚动</span><em>纯 HTML，无脚本。</em></div>
-        <div class="m"><strong>一道题：四问依次浮现</strong><span class="chip c-wx">SMIL 级联</span><em>静态兜底：动画被过滤时直接显示四个问题。</em></div>
-        <div class="m"><strong>自测清单：轻点打勾</strong><span class="chip c-wx">SMIL 描边动画</span><em>每行独立。</em></div>
-        <div class="m"><strong>粘贴后结构与交互是否保留</strong><span class="chip c-dev">需真机验证</span><em>重点：负 margin 叠放是否对齐、点击是否触发、安卓是否同样生效、深色模式观感。</em></div>
-        <div class="m"><strong>图片自动转存</strong><span class="chip c-dev">需后台验证</span><em>取决于公众号能否拉取图片地址；失败时用「替换图片」，或用 API 脚本上传。</em></div>
+        <div class="m"><strong>开头「08」描边后填色</strong><span class="chip c-wx">打开时播放</span><em>SMIL 自动动画，位于首屏。</em></div>
+        <div class="m"><strong>02 课堂节奏环：黄点循环经过四步</strong><span class="chip c-wx">持续动画</span><em>animateMotion，不需要点击。</em></div>
+        <div class="m"><strong>03 三种情况卡片：轻点看课上怎么做</strong><span class="chip c-wx">轻点 × 3</span><em>每张卡独立；被过滤时直接显示答案。</em></div>
+        <div class="m"><strong>04 一条视频的流程：轻点走一遍六步</strong><span class="chip c-wx">轻点播放</span><em>被过滤时直接显示六步全亮。</em></div>
+        <div class="m"><strong>05 五天之后：虚线一直往后流</strong><span class="chip c-wx">持续动画</span><em>不需要点击。</em></div>
+        <div class="m"><strong>版式、横滑照片、荧光笔强调</strong><span class="chip c-ok">本地已演示</span><em>纯内联样式。荧光笔用渐变背景，被过滤时只剩加粗。</em></div>
+        <div class="m"><strong>粘贴后结构与交互是否保留</strong><span class="chip c-dev">需真机验证</span><em>iPhone、安卓、深色模式各看一遍。</em></div>
+        <div class="m"><strong>图片自动转存</strong><span class="chip c-dev">需后台验证</span><em>失败时用「替换图片」，或用 publish_draft.py 上传。</em></div>
       </div>
     </div>
   </aside>
@@ -568,9 +564,9 @@ TOOL_JS = """<script>
 (function(){
   var $ = function(id){ return document.getElementById(id); };
   var sel = $('base'), custom = $('custom'), status = $('status');
-  PAYLOAD.bases.forEach(function(b, i){ var o = document.createElement('option'); o.value = b.url; o.textContent = b.name; sel.appendChild(o); });
+  PAYLOAD.bases.forEach(function(b){ var o = document.createElement('option'); o.value = b.url; o.textContent = b.name; sel.appendChild(o); });
   var o = document.createElement('option'); o.value = '__custom'; o.textContent = '自定义前缀…'; sel.appendChild(o);
-  try { var saved = localStorage.getItem('vol08-base'); if (saved) sel.value = saved; } catch (e) {}
+  try { var saved = localStorage.getItem('vol08-base'); if (saved && [].some.call(sel.options, function(x){ return x.value === saved; })) sel.value = saved; } catch (e) {}
   function syncCustom(){ custom.hidden = sel.value !== '__custom'; }
   sel.addEventListener('change', function(){ syncCustom(); try { localStorage.setItem('vol08-base', sel.value); } catch (e) {} });
   syncCustom();
@@ -609,7 +605,7 @@ TOOL_JS = """<script>
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ref", default="0f0fb78beb0afad70e992a1c4d38f1d6039066dc", help="图片所在的 git 提交或分支（用于 CDN 地址）")
+    ap.add_argument("--ref", default="main", help="图片所在的 git 提交（用于 CDN 地址）")
     args = ap.parse_args()
     bases = [
         {"name": "jsDelivr CDN（推荐）", "url": f"https://cdn.jsdelivr.net/gh/{REPO}@{args.ref}/{IMG_PATH}"},
@@ -622,7 +618,7 @@ def main():
 
     (ROOT / "dist").mkdir(exist_ok=True)
     (ROOT / "dist" / "article.html").write_text(frag.replace(IMG, bases[0]["url"]), encoding="utf-8")
-    (ROOT / "dist" / "article.template.html").write_text(frag, encoding="utf-8")  # 供 publish_draft.py 替换图片
+    (ROOT / "dist" / "article.template.html").write_text(frag, encoding="utf-8")
     (ROOT / "preview.html").write_text(tool_page(frag, bases, True), encoding="utf-8")
     (ROOT / "artifact").mkdir(exist_ok=True)
     (ROOT / "artifact" / "index.html").write_text(tool_page(frag, bases, False), encoding="utf-8")
