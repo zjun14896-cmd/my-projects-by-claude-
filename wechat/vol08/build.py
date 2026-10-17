@@ -49,8 +49,8 @@ def p(text, style=""):
     return f'<p style="margin:0;padding:0;{style}">{text}</p>'
 
 
-def body(*lines, top=18, align="justify"):
-    """叙述段落两端对齐；短句、回答句用 center()。"""
+def body(*lines, top=18, align="center"):
+    """全文居中；长句由调用方手动断行，每行不超过约 17 个字。"""
     return p("<br>".join(lines), f"margin-top:{top}px;font-size:16px;line-height:1.9;color:{BODY};"
                                  f"letter-spacing:0.3px;text-align:{align};")
 
@@ -118,19 +118,9 @@ def rows(items):
 
 
 # ── SMIL 片段 ────────────────────────────────────────────
-# 公众号会删掉 id，无法用 "xx.click" 跨元素触发。做法：透明热区放在最深层，
-# 点击事件冒泡经过每一层祖先 <g>，每层用 begin="click" 驱动自己的可继承属性
-# （fill-opacity / stroke-dashoffset / transform），一次轻点触发一整套编排。
-def fade(start, end, begin="click", dur="0.45s"):
-    """属性基值（写在 <g> 上）= 完成态兜底；加载即 <set> 到初始态；轻点后动画到完成态。"""
-    return (f'<set attributeName="fill-opacity" to="{start}" begin="0s"/>'
-            f'<animate attributeName="fill-opacity" values="{start};{end}" dur="{dur}" '
-            f'begin="{begin}" fill="freeze" restart="never"/>')
-
-
-def hit():
-    return ('<rect x="-400" y="-400" width="1200" height="1400" fill="#000000" fill-opacity="0" '
-            'pointer-events="all" style="cursor:pointer;"/>')
+# 公众号会删掉 id，无法用 "xx.click" 跨元素触发。交互一律用最稳的单层结构：
+# 被点的透明矩形放在正面组 <g> 里，由这个组自己的 <animate begin="click"> 响应；
+# 不用 pointer-events、不用 <set> 初始化、不靠继承属性。其余动效为自动循环播放。
 
 
 def svg_open(w, h, style=""):
@@ -215,62 +205,83 @@ def loop_diagram():
     return glow_panel(out + "</svg>", bg)
 
 
-def persona_card(label, question, a1, a2):
-    """三种情况之一：轻点卡片，看到这种情况在课上怎么被对待。完成态兜底 = 直接显示答案。"""
-    W, H = 343, 136
-    return (svg_open(W, H, "margin-top:10px;")
-            # L1 完成态
-            + '<g fill-opacity="1">' + fade(0, 1, "click+0.12s", "0.45s")
-            + f'<rect x="0" y="0" width="{W}" height="{H}" rx="18" fill="{BLUE_SOFT}" pointer-events="none"/>'
-            # L2 初始态（含热区）
-            + '<g fill-opacity="0">' + fade(1, 0, "click", "0.3s")
-            + f'<rect x="0" y="0" width="{W}" height="{H}" rx="18" fill="{TILE}" pointer-events="none"/>'
-            + t(20, 104, "轻点，看看课上怎么做", 13, MUTED, ls=1, extra=' pointer-events="none"')
-            + f'<circle cx="311" cy="34" r="13" fill="{BLUE}"/>'
-            + '<rect x="305" y="33.25" width="12" height="1.5" fill="#FFFFFF"/>'
-            + '<rect x="310.25" y="28" width="1.5" height="12" fill="#FFFFFF"/>'
-            + hit() + "</g>"
-            + t(20, 34, label, 12, BLUE, 600, ls=2, extra=' fill-opacity="1" pointer-events="none"')
-            + t(20, 66, question, 18, INK, 700, ls=0.5, extra=' fill-opacity="1" pointer-events="none"')
-            + t(20, 100, a1, 15, BODY, ls=0.3, extra=' pointer-events="none"')
-            + t(20, 122, a2, 15, BODY, ls=0.3, extra=' pointer-events="none"')
-            + "</g></svg>")
+def flip_card(n, label, question, answer_lines):
+    """三种情况之一。深色极光正面，轻点后向中线收拢翻开，露出品牌蓝背面的做法。
+    背面画在外层 section 的渐变底和 SVG 底层，始终存在；正面整组盖在上面，只有正面组有点击动画。"""
+    W, H = 343, 168
+    cx, cy = W / 2, H / 2
+    ys = {1: [94], 2: [84, 112], 3: [72, 100, 128]}[len(answer_lines)]
+    back = (t(cx, 40, f"0{n} · 课上这样做", 12, "#FFE08A", 600, "middle", 2)
+            + "".join(t(cx, y, a, 16, "#FFFFFF", 600, "middle", 0.3) for y, a in zip(ys, answer_lines))
+            # 背面持续的斜向流光
+            + '<polygon points="-90,0 -40,0 -110,168 -160,168" fill="#FFFFFF" opacity="0.16">'
+              '<animateTransform attributeName="transform" type="translate" values="0 0;640 0;640 0" '
+              'keyTimes="0;0.5;1" dur="3.6s" repeatCount="indefinite"/></polygon>')
+    grid = "".join(f'<rect x="{x}" y="0" width="1" height="{H}" fill="#FFFFFF" opacity="0.045"/>' for x in range(14, W, 28))
+    grid += "".join(f'<rect x="0" y="{y}" width="{W}" height="1" fill="#FFFFFF" opacity="0.045"/>' for y in range(14, H, 28))
+    front = (f'<rect x="0" y="0" width="{W}" height="{H}" fill="#0A1534"/>'
+             + f'<circle cx="{W}" cy="0" r="170" fill="#2F6BFF" opacity="0.40"/>'
+             + f'<circle cx="{W}" cy="0" r="92" fill="#7CC4FF" opacity="0.26"/>'
+             + f'<circle cx="0" cy="{H}" r="120" fill="#2F6BFF" opacity="0.16"/>'
+             + grid
+             + t(cx, 42, f"0{n} · {label}", 12, YELLOW, 600, "middle", 3)
+             + t(cx, 86, question, 20, "#FFFFFF", 700, "middle", 0.5)
+             + f'<rect x="{cx - 66}" y="{H - 52}" width="132" height="34" rx="17" fill="#FFFFFF" opacity="0.12"/>'
+             + f'<circle cx="{cx - 40}" cy="{H - 35}" r="4" fill="{YELLOW}"/>'
+             + f'<circle cx="{cx - 40}" cy="{H - 35}" r="4" fill="{YELLOW}" opacity="0.7">'
+               '<animate attributeName="r" values="4;13" dur="1.6s" repeatCount="indefinite"/>'
+               '<animate attributeName="opacity" values="0.7;0" dur="1.6s" repeatCount="indefinite"/></circle>'
+             + t(cx + 10, H - 30, "轻点翻开", 13, "#FFFFFF", 600, "middle", 2)
+             # 点击区：整张卡，透明
+             + f'<rect x="0" y="0" width="{W}" height="{H}" fill="#000000" fill-opacity="0" style="cursor:pointer;"/>')
+    flip = (f'<g transform="translate({cx} {cy})">'
+            '<animateTransform attributeName="transform" type="scale" additive="sum" values="1 1;1.03 1;0.001 1" '
+            'keyTimes="0;0.3;1" calcMode="spline" keySplines="0.3 0 0.4 1;0.6 0 0.9 0.5" dur="0.42s" '
+            'begin="click" fill="freeze" restart="never"/>'
+            '<animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur="0.42s" '
+            'begin="click" fill="freeze" restart="never"/>'
+            f'<g transform="translate({-cx} {-cy})">{front}</g></g>')
+    bg = ("background-color:#003CAC;background-image:radial-gradient(80% 90% at 100% 0%,rgba(124,196,255,0.55) 0%,"
+          "rgba(124,196,255,0) 60%),linear-gradient(135deg,#2F6BFF 0%,#003CAC 60%,#06246E 100%);")
+    return (f'<section style="margin-top:12px;border-radius:20px;overflow:hidden;line-height:0;font-size:0;{bg}">'
+            + svg_open(W, H) + back + flip + "</svg></section>")
 
 
 def pipeline():
-    """一条视频的完整流程：轻点后黄线自上而下走完六步，最后落到「自己上手」。"""
-    W, H, x0, y0, gap = 343, 482, 40, 132, 50
+    """一条视频的完整流程：黄线自上而下走完六步并依次点亮，6 秒一轮自动循环。
+    属性基值为全部点亮，SMIL 被过滤时直接显示完整流程。"""
+    W, H, x0, y0, gap = 343, 468, 40, 132, 50
     steps = ["挑选商品", "构思内容", "布置灯光", "拍摄", "剪辑", "发布"]
     span = gap * (len(steps) - 1)
+    cyc, run, hold = 6.0, 0.62, 0.9
+    cx_ = W / 2
     out = (svg_open(W, H)
-           + t(24, 44, "一条视频的完整流程", 12, YELLOW, 600, ls=3)
-           + t(24, 84, "从挑选商品，到最后发布。", 22, "#FFFFFF", 700, ls=0.5)
+           + t(cx_, 44, "一条视频的完整流程", 12, YELLOW, 600, "middle", 3)
+           + t(cx_, 84, "从挑选商品，到最后发布。", 22, "#FFFFFF", 700, "middle", 0.5)
            + f'<rect x="{x0 - 0.75}" y="{y0}" width="1.5" height="{span}" fill="#26304A"/>')
-    for i, s in enumerate(steps):
+    for i, s_ in enumerate(steps):
         y = y0 + gap * i
         out += (f'<circle cx="{x0}" cy="{y}" r="6" fill="{NIGHT}" stroke="#3A4562" stroke-width="1.5"/>'
-                + t(66, y + 6, s, 17, "#4E5873", 600, ls=1)
-                + t(319, y + 5, f"0{i + 1}", 12, "#3A4562", ls=1))
-    # 进度线（stroke-dashoffset 可继承，写在 Lp 上）
-    out += (f'<g stroke-dashoffset="0"><set attributeName="stroke-dashoffset" to="{span}" begin="0s"/>'
-            f'<animate attributeName="stroke-dashoffset" values="{span};0" dur="3s" begin="click" fill="freeze" restart="never"/>'
-            f'<line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y0 + span}" stroke="{YELLOW}" stroke-width="2" stroke-dasharray="{span}"/>')
-    for i, s in enumerate(steps):
+                + t(66, y + 6, s_, 17, "#4E5873", 600, ls=1)
+                + t(319, y + 5, f"0{i + 1}", 12, "#3A4562", anchor="end", ls=1))
+    out += (f'<line x1="{x0}" y1="{y0}" x2="{x0}" y2="{y0 + span}" stroke="{YELLOW}" stroke-width="2" '
+            f'stroke-dasharray="{span}" stroke-dashoffset="0">'
+            f'<animate attributeName="stroke-dashoffset" values="{span};0;0;{span}" keyTimes="0;{run};{hold};1" '
+            f'dur="{cyc}s" repeatCount="indefinite"/></line>')
+    for i, s_ in enumerate(steps):
         y = y0 + gap * i
-        out += ('<g fill-opacity="1">' + fade(0, 1, f"click+{0.6 * i:.1f}s", "0.3s")
-                + f'<circle cx="{x0}" cy="{y}" r="13" fill="{YELLOW}" opacity="0.22"/>'
-                + f'<circle cx="{x0}" cy="{y}" r="6" fill="{YELLOW}"/>'
-                + t(66, y + 6, s, 17, "#FFFFFF", 600, ls=1)
-                + t(319, y + 5, f"0{i + 1}", 12, YELLOW, ls=1))
-    out += ('<g fill-opacity="1">' + fade(0, 1, "click+3.3s", "0.5s")
-            + t(24, 420, "看完之后，同学们用现场的商品和设备，", 14, "#C9CFDD", ls=0.5)
-            + t(24, 444, "自己上手拍、自己剪。", 14, "#FFFFFF", 600, ls=0.5)
-            + '<g fill-opacity="0">' + fade(1, 0, "click", "0.3s")
-            + '<rect x="24" y="406" width="295" height="46" rx="23" fill="#FFFFFF" opacity="0.08"/>'
-            + f'<path d="M44 421 L56 429 L44 437 Z" fill="{YELLOW}"/>'
-            + t(68, 434, "轻点，把流程走一遍", 15, "#FFFFFF", 600, ls=1)
-            + hit() + "</g></g>"
-            + "</g>" * len(steps) + "</g></svg>")
+        a = round(run * i / (len(steps) - 1), 3)
+        on = round(min(a + 0.03, run), 3) if i else 0.03
+        keys = f"0;{a};{on};{hold};{min(hold + 0.04, 1)};1" if i else f"0;{on};{hold};{hold + 0.04};1"
+        vals = "0;0;1;1;0;0" if i else "0;1;1;0;0"
+        out += (f'<g opacity="1"><animate attributeName="opacity" values="{vals}" keyTimes="{keys}" '
+                f'dur="{cyc}s" repeatCount="indefinite"/>'
+                f'<circle cx="{x0}" cy="{y}" r="13" fill="{YELLOW}" opacity="0.22"/>'
+                f'<circle cx="{x0}" cy="{y}" r="6" fill="{YELLOW}"/>'
+                + t(66, y + 6, s_, 17, "#FFFFFF", 600, ls=1)
+                + t(319, y + 5, f"0{i + 1}", 12, YELLOW, anchor="end", ls=1) + "</g>")
+    out += (t(cx_, 418, "看完之后，同学们用现场的商品和设备，", 14, "#C9CFDD", anchor="middle", ls=0.5)
+            + t(cx_, 442, "自己上手拍、自己剪。", 14, "#FFFFFF", 600, "middle", 0.5) + "</svg>")
     return (f'<section style="margin-top:26px;border-radius:22px;overflow:hidden;line-height:0;font-size:0;'
             f'background-color:{NIGHT};background-image:radial-gradient(90% 60% at 100% 0%,'
             f'rgba(0,60,172,0.6) 0%,rgba(0,60,172,0) 70%);">{out}</section>')
@@ -306,9 +317,35 @@ def after_timeline():
     return glow_panel(out + "</svg>", bg)
 
 
+# ── 视频位 ───────────────────────────────────────────────
+VIDEO = "{{VIDEO}}"
+VIDEO_FILE = "vol08-18s-1080p.mp4"
+# 粘贴进公众号的占位框：光标放进框里，用编辑器的「视频」插入短片，再删掉这个框
+VIDEO_PASTE = (f'<section style="margin-top:14px;border:1.5px dashed #9DB4E8;border-radius:16px;'
+               f'background-color:#F3F6FD;padding:46px 16px;text-align:center;">'
+               + f'<p style="margin:0;font-size:16px;line-height:1.6;color:#111318;font-weight:700;text-align:center;">在此处插入视频</p>'
+               + f'<p style="margin:8px 0 0;font-size:12px;line-height:1.7;color:#8B909A;text-align:center;">'
+                 f'编辑器工具栏「视频」→ 上传 {VIDEO_FILE}<br>插入后删除本框</p></section>')
+# 本地预览：用短片里的一帧做封面示意
+VIDEO_PREVIEW = ('<div style="position:relative;margin-top:14px;border-radius:16px;overflow:hidden;line-height:0;">'
+                 '<img src="img/video-poster.jpg" alt="第 8 期短片" style="display:block;width:100%;height:auto;">'
+                 '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;'
+                 'background:rgba(5,10,24,.18);"><div style="width:58px;height:58px;border-radius:50%;'
+                 'background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;'
+                 'box-shadow:0 10px 30px rgba(0,30,90,.3);"><div style="width:0;height:0;margin-left:5px;'
+                 'border-left:18px solid #003CAC;border-top:11px solid transparent;border-bottom:11px solid transparent;">'
+                 '</div></div></div></div>')
+
+
+def video_slot():
+    return ('<section style="margin-top:34px;">'
+            + p("18 秒，看看这五天", f"font-size:12px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:3px;text-align:center;")
+            + VIDEO + caption("第 8 期线下实操课 · 现场短片") + "</section>")
+
+
 # ── 正文 ─────────────────────────────────────────────────
 def article():
-    # 对齐规则：标题、引言、回答句、列表、图注居中；叙述性长段落两端对齐。
+    # 全文居中。长段落手动断成长短均匀的短行（每行约 17 字以内），避免单字落行。
     hero = (f'<section style="border-radius:28px;overflow:hidden;background-color:{NIGHT};'
             'background-image:radial-gradient(90% 55% at 50% 30%,rgba(0,60,172,0.6) 0%,rgba(0,60,172,0) 70%);'
             'padding:30px 22px 22px;text-align:center;">'
@@ -328,21 +365,22 @@ def article():
           f"font-size:20px;line-height:1.7;color:{INK};font-weight:700;letter-spacing:0.5px;text-align:center;"),
         center("这期来的同学，情况各不相同。", top=20),
         f'<section style="margin-top:18px;">' + rows([
-            ("从零开始", "有人之前没接触过跨境电商，想从零开始了解；"),
-            ("已经开店", "有人店已经开了一段时间，但一直没有起色；"),
+            ("从零开始", "有人之前没接触过跨境电商，<br>想从零开始了解；"),
+            ("已经开店", "有人店已经开了一段时间，<br>但一直没有起色；"),
             ("工厂 · 品牌方", "也有工厂和品牌方，带着自家产品过来，<br>希望团队能尽快把 TikTok 这条路跑通。"),
         ]) + "</section>",
         center("大家来的原因不一样，", "但遇到的问题很相似：", top=26),
         p(f"网上的东西看了不少，<br>真要自己动手，<br>{mark('还是不知道该怎么做。')}",
           f"margin-top:14px;font-size:21px;line-height:1.7;color:{INK};font-weight:700;letter-spacing:0.5px;text-align:center;"),
         center("这五天，我们就从这里开始。", top=18),
+        video_slot(),
         top=44)
 
     ch1 = chapter(
         opener(1, "看了那么多教程，怎么还是理不清？"),
         photo("01-whiteboard.jpg", "老师在白板前讲解", "课堂 · 10.12"),
-        body("网上的内容很多，但大多是零散的。",
-             "今天看一个选品技巧，明天看一个上架教程，始终串不成一条完整的路。", top=24),
+        body("网上的内容很多，但大多是零散的。", "今天看一个选品技巧，", "明天看一个上架教程，",
+             "始终串不成一条完整的路。", top=24),
         answer("所以课上没有急着讲技巧，", "而是把整件事从头到尾梳理一遍："),
         f'<section style="margin-top:14px;">' + rows([
             (f'<span style="color:{BLUE};font-size:13px;font-weight:600;margin-right:10px;">01</span>这门生意是怎么运转的', ""),
@@ -354,15 +392,15 @@ def article():
     ch2 = chapter(
         opener(2, "看的时候都懂，自己一做就出问题"),
         photo("02-hands-on.jpg", "学员在自己的电脑上实操，老师在旁指导", "课堂 · 10.16"),
-        body("看别人操作很顺，轮到自己，往往不是这里填错，就是那里找不到入口。", top=24),
+        body("看别人操作很顺，轮到自己，", "往往不是这里填错，", "就是那里找不到入口。", top=24),
         answer(f"所以这五天里，{mark('大部分时间')}", f"{mark('是同学们在自己的电脑上实际操作。')}"),
-        body("老师讲完一步，大家跟着做一步，老师逐个查看每个人的操作，有报错、有卡住的地方，就过去一起看、一起解决。"),
+        body("老师讲完一步，大家跟着做一步，", "老师逐个查看每个人的操作，", "有报错、有卡住的地方，", "就过去一起看、一起解决。"),
         loop_diagram(),
         answer("每一步都自己亲手做过，", "回去再操作时会顺很多。", top=22))
 
     ch3 = chapter(
         opener(3, "我的情况，跟别人不太一样"),
-        p("左右滑动 →", f"margin-top:26px;font-size:12px;line-height:1;color:{MUTED};letter-spacing:2px;text-align:right;"),
+        p("← 左右滑动 →", f"margin-top:26px;font-size:12px;line-height:1;color:{MUTED};letter-spacing:2px;text-align:center;"),
         f'<section style="margin-top:10px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'
         f'-webkit-overflow-scrolling:touch;font-size:0;line-height:0;">'
         + "".join(
@@ -374,33 +412,33 @@ def article():
         + "</section>",
         center("刚起步的人和已经开店的人，", "需要的答案不一样；", "工厂关心的问题，", "和个人卖家也不一样。", top=24),
         answer("所以除了集体授课，", f"课程中也安排了{mark('一对一的交流时间')}。"),
-        p("你是哪一种？轻点看看。",
+        p("你是哪一种？轻点卡片，翻开看看。",
           f"margin-top:30px;font-size:13px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:2px;text-align:center;"),
         f'<section style="margin-top:6px;line-height:0;font-size:0;">'
-        + persona_card("从零开始", "我该从哪儿开始？", "先把整件事从头到尾梳理一遍：", "怎么运转，每一步做什么，前后怎么衔接。")
-        + persona_card("已经开店", "店开了，为什么一直没起色？", "打开自己的店铺后台，", "和老师一起看数据、找问题。")
-        + persona_card("工厂 · 品牌方", "我的产品，适合怎么卖？", "带来自家产品，聊这个产品", "适合怎么卖、卖给谁。")
+        + flip_card(1, "从零开始", "我该从哪儿开始？", ["先把整件事从头到尾梳理一遍：", "怎么运转，每一步做什么，", "前后怎么衔接。"])
+        + flip_card(2, "已经开店", "店开了，为什么一直没起色？", ["打开自己的店铺后台，", "和老师一起看数据、找问题。"])
+        + flip_card(3, "工厂 · 品牌方", "我的产品，适合怎么卖？", ["带来自家产品，", "聊这个产品适合怎么卖、卖给谁。"])
         + "</section>",
-        answer("针对每个人的实际情况，给出具体的建议。", top=22))
+        answer("针对每个人的实际情况，", "给出具体的建议。", top=26))
 
     ch4 = chapter(
         opener(4, "真正在做的团队，平时是怎么做内容的？"),
         photo("04-studio.jpg", "公司内容团队的拍摄现场", "拍摄间 · 10.14"),
         center("我们的每一期线下课，都在公司里上。", "同学们上课、实操的地方，",
                f"{mark('也是公司团队每天工作的地方。')}", top=24),
-        answer("所以除了听课，大家还能直接看到", "一家 TikTok 跨境电商公司日常是怎么运转的。"),
-        body("以内容为例，我们带大家完整看了一遍员工平时的工作流程：每个环节怎么做、用什么工具、需要注意什么。"),
+        answer("所以除了听课，", "大家还能直接看到一家 TikTok", "跨境电商公司日常是怎么运转的。"),
+        body("以内容为例，我们带大家完整看了一遍", "员工平时的工作流程：", "每个环节怎么做、用什么工具、", "需要注意什么。"),
         pipeline(),
-        center("有问题可以直接问身边正在做这件事的同事。", top=22))
+        center("有问题可以直接问", "身边正在做这件事的同事。", top=22))
 
     ch5 = chapter(
         opener(5, "五天，只是一个开始"),
         photo("05-classroom.jpg", "第 8 期课堂全景", "课堂 · 10.12"),
-        body("五天能解决的问题是有限的。",
-             "真正开始做店以后，还会遇到选品、运营、内容、数据等各种新情况，很多问题要在实际操作中才会出现。", top=24),
+        body("五天能解决的问题是有限的。", "真正开始做店以后，", "还会遇到选品、运营、", "内容、数据等各种新情况，",
+             "很多问题要在实际操作中才会出现。", top=24),
         answer("所以课程结束并不是结束。"),
-        body(f"{mark('线上课程和学员答疑群会一直保留')}，同学们回去实操中遇到的问题，可以随时在群里提出，我们会持续解答。",
-             "对于大家普遍关心的问题，后续也会安排专门的讲解。"),
+        body(f"{mark('线上课程和学员答疑群会一直保留')}，", "同学们回去实操中遇到的问题，", "可以随时在群里提出，",
+             "我们会持续解答。", "对于大家普遍关心的问题，", "后续也会安排专门的讲解。"),
         after_timeline())
 
     outro = (f'<section style="margin-top:88px;border-radius:28px;overflow:hidden;background-color:{NIGHT};'
@@ -417,8 +455,6 @@ def article():
              + p("第 9 期线下实操课正在招生中，<br>想了解的朋友，<br>欢迎后台留言或私信我们。",
                  "margin-top:16px;font-size:15px;line-height:1.8;color:#FFFFFF;letter-spacing:0.5px;text-align:center;")
              + f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:84px;height:auto;margin:40px auto 0;">'
-             + p("森拓旗下 · 跨境电商实操培训",
-                 f"margin-top:12px;font-size:11px;line-height:1;color:{NIGHT_TEXT};letter-spacing:2px;text-align:center;")
              + "</section>")
 
     foot = p("本文照片均摄于云拓会第 8 期线下实操课",
@@ -453,8 +489,9 @@ def lint(fragment):
 
 
 # ── 工具页 ───────────────────────────────────────────────
-def tool_page(fragment, img_bases, full_doc):
-    preview = fragment.replace(IMG, "img/")
+def tool_page(fragment, img_bases, full_doc, raw):
+    """fragment 是粘贴版（视频位为占位框）；预览区用 raw，把视频位换成短片封面示意。"""
+    preview = raw.replace(VIDEO, VIDEO_PREVIEW).replace(IMG, "img/")
     payload = json.dumps({"html": fragment, "bases": img_bases}, ensure_ascii=False).replace("</", "<\\/")
     page = (TOOL_HEAD.replace("{{CSS}}", TOOL_CSS)
             + TOOL_BODY.replace("{{ARTICLE}}", preview).replace("{{TITLE}}", TITLE).replace("{{DIGEST}}", DIGEST)
@@ -570,6 +607,7 @@ TOOL_BODY = """<div class="wrap">
         <li>公众号后台 → <b>新的创作 → 文章</b>，填入上面的标题与摘要。</li>
         <li>点 <b>复制正文</b>，在编辑器正文区 <b>Ctrl/⌘ + V</b>。</li>
         <li>等图片转存完成；若有破图，点该图 → <b>替换</b>，从 <b>img/</b> 选同名图片。</li>
+        <li>正文里有一个虚线框「在此处插入视频」：光标放进框里，工具栏 <b>视频</b> → 上传 <b>vol08-18s-1080p.mp4</b>，插入后删掉虚线框。</li>
         <li><b>保存为草稿 → 预览 → 发送到手机</b>，按下方清单在 iPhone 与安卓各点一遍。</li>
       </ol>
     </div>
@@ -578,8 +616,9 @@ TOOL_BODY = """<div class="wrap">
       <div class="matrix">
         <div class="m"><strong>开头「08」描边后填色</strong><span class="chip c-wx">打开时播放</span><em>SMIL 自动动画，位于首屏。</em></div>
         <div class="m"><strong>02 课堂节奏环：黄点循环经过四步</strong><span class="chip c-wx">持续动画</span><em>animateMotion，不需要点击。</em></div>
-        <div class="m"><strong>03 三种情况卡片：轻点看课上怎么做</strong><span class="chip c-wx">轻点 × 3</span><em>每张卡独立；被过滤时直接显示答案。</em></div>
-        <div class="m"><strong>04 一条视频的流程：轻点走一遍六步</strong><span class="chip c-wx">轻点播放</span><em>被过滤时直接显示六步全亮。</em></div>
+        <div class="m"><strong>03 三张翻面卡：轻点翻开看课上怎么做</strong><span class="chip c-wx">轻点 × 3</span><em>单层结构：点击区和动画在同一个组里，不依赖 pointer-events、&lt;set&gt; 或继承属性。</em></div>
+        <div class="m"><strong>04 一条视频的流程：六步依次点亮</strong><span class="chip c-wx">自动循环</span><em>6 秒一轮，不需要点击；被过滤时直接显示六步全亮。</em></div>
+        <div class="m"><strong>开头后的短片</strong><span class="chip c-dev">在编辑器插入</span><em>粘贴后正文里是虚线占位框，用编辑器「视频」上传短片替换它。</em></div>
         <div class="m"><strong>05 五天之后：虚线一直往后流</strong><span class="chip c-wx">持续动画</span><em>不需要点击。</em></div>
         <div class="m"><strong>版式、横滑照片、荧光笔强调</strong><span class="chip c-ok">本地已演示</span><em>纯内联样式。荧光笔用渐变背景，被过滤时只剩加粗。</em></div>
         <div class="m"><strong>粘贴后结构与交互是否保留</strong><span class="chip c-dev">需真机验证</span><em>iPhone、安卓、深色模式各看一遍。</em></div>
@@ -641,7 +680,8 @@ def main():
         {"name": "jsDelivr CDN（推荐）", "url": f"https://cdn.jsdelivr.net/gh/{REPO}@{args.ref}/{IMG_PATH}"},
         {"name": "GitHub Raw", "url": f"https://raw.githubusercontent.com/{REPO}/{args.ref}/{IMG_PATH}"},
     ]
-    frag = compact(article())
+    raw = compact(article())
+    frag = raw.replace(VIDEO, VIDEO_PASTE)
     problems, n_text = lint(frag)
     if problems:
         raise SystemExit("正文包含公众号不兼容写法：\n  " + "\n  ".join(problems))
@@ -649,9 +689,9 @@ def main():
     (ROOT / "dist").mkdir(exist_ok=True)
     (ROOT / "dist" / "article.html").write_text(frag.replace(IMG, bases[0]["url"]), encoding="utf-8")
     (ROOT / "dist" / "article.template.html").write_text(frag, encoding="utf-8")
-    (ROOT / "preview.html").write_text(tool_page(frag, bases, True), encoding="utf-8")
+    (ROOT / "preview.html").write_text(tool_page(frag, bases, True, raw), encoding="utf-8")
     (ROOT / "artifact").mkdir(exist_ok=True)
-    (ROOT / "artifact" / "index.html").write_text(tool_page(frag, bases, False), encoding="utf-8")
+    (ROOT / "artifact" / "index.html").write_text(tool_page(frag, bases, False, raw), encoding="utf-8")
     print(f"正文 {len(frag.encode('utf-8')) / 1024:.1f} KB，可见文字约 {n_text} 字，兼容性检查通过。")
 
 
