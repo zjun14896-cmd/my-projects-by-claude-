@@ -49,8 +49,20 @@ def p(text, style=""):
     return f'<p style="margin:0;padding:0;{style}">{text}</p>'
 
 
-def body(*lines, top=18):
-    return p("<br>".join(lines), f"margin-top:{top}px;font-size:16px;line-height:1.9;color:{BODY};letter-spacing:0.3px;")
+def body(*lines, top=18, align="justify"):
+    """叙述段落两端对齐；短句、回答句用 center()。"""
+    return p("<br>".join(lines), f"margin-top:{top}px;font-size:16px;line-height:1.9;color:{BODY};"
+                                 f"letter-spacing:0.3px;text-align:{align};")
+
+
+def center(*lines, top=18):
+    return body(*lines, top=top, align="center")
+
+
+def answer(*lines, top=18):
+    """「所以……」这一类回答句：居中、加粗。"""
+    return p("<br>".join(lines), f"margin-top:{top}px;font-size:16px;line-height:1.9;color:{INK};"
+                                 "font-weight:600;letter-spacing:0.3px;text-align:center;")
 
 
 def strong(t):
@@ -62,18 +74,17 @@ def mark(t):
     return f'<span style="color:{INK};font-weight:600;{MARK}">{t}</span>'
 
 
-def opener(n, *q_lines):
-    """章节开头：细体大序号 + 读者的原话。问题就是标题。"""
-    q = "<br>".join(q_lines)
-    q = f'<span style="color:{BLUE};">「</span>{q}<span style="color:{BLUE};">」</span>'
-    return (p(f'<span style="font-size:46px;line-height:1;font-weight:200;color:{BLUE};letter-spacing:-1px;">{n:02d}</span>'
-              f'<span style="font-size:12px;line-height:1;color:{MUTED};letter-spacing:1px;margin-left:8px;">/ 05</span>',
-              "line-height:1;")
-            + p(q, f"margin-top:16px;font-size:24px;line-height:1.5;font-weight:700;color:{INK};letter-spacing:0.3px;"))
+def opener(n, question):
+    """章节开头：居中的细体大序号 + 一行读者原话。"""
+    return (p(f'<span style="font-size:50px;line-height:1;font-weight:200;color:{BLUE};letter-spacing:-1px;">{n:02d}</span>'
+              f'<span style="font-size:12px;line-height:1;color:{MUTED};letter-spacing:1px;margin-left:6px;">/ 05</span>',
+              "line-height:1;text-align:center;")
+            + p(question, f"margin-top:16px;font-size:18px;line-height:1.6;font-weight:700;color:{INK};"
+                          "letter-spacing:0;text-align:center;"))
 
 
-def caption(text):
-    return p(text, f"margin-top:10px;font-size:12px;line-height:1.6;color:{MUTED};letter-spacing:1px;")
+def caption(text, align="center"):
+    return p(text, f"margin-top:10px;font-size:12px;line-height:1.6;color:{MUTED};letter-spacing:1px;text-align:{align};")
 
 
 def img(name, alt):
@@ -91,23 +102,18 @@ def chapter(*parts, top=88):
     return f'<section style="margin-top:{top}px;">{"".join(parts)}</section>'
 
 
-def rows(items, label_w=None):
-    """细线分隔的列表。items: [(小标签, 正文)]；label_w 给定时标签与正文同行。"""
+def rows(items):
+    """细线分隔的居中列表。items: [(小标签, 正文)]；正文为空时标签与文字同行显示。"""
     out = ""
     for i, (lab, txt) in enumerate(items):
-        last = i == len(items) - 1
-        bb = f"border-bottom:1px solid {LINE};" if last else ""
-        if label_w:
-            out += (f'<section style="display:flex;align-items:baseline;padding:13px 0;border-top:1px solid {LINE};{bb}">'
-                    f'<section style="flex:none;width:{label_w}px;font-size:13px;line-height:1.6;color:{BLUE};'
-                    f'font-weight:600;letter-spacing:1px;">{lab}</section>'
-                    f'<section style="flex:1;min-width:0;font-size:16px;line-height:1.7;color:{INK};font-weight:500;">{txt}</section>'
-                    "</section>")
+        bb = f"border-bottom:1px solid {LINE};" if i == len(items) - 1 else ""
+        out += f'<section style="padding:15px 0;border-top:1px solid {LINE};{bb}text-align:center;">'
+        if txt:
+            out += (p(lab, f"font-size:12px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:2px;text-align:center;")
+                    + p(txt, f"margin-top:6px;font-size:15px;line-height:1.8;color:{BODY};letter-spacing:0.2px;text-align:center;"))
         else:
-            out += (f'<section style="padding:16px 0;border-top:1px solid {LINE};{bb}">'
-                    + p(lab, f"font-size:12px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:2px;")
-                    + p(txt, f"margin-top:6px;font-size:15px;line-height:1.8;color:{BODY};letter-spacing:0.2px;")
-                    + "</section>")
+            out += p(lab, f"font-size:16px;line-height:1.6;color:{INK};font-weight:500;text-align:center;")
+        out += "</section>"
     return out
 
 
@@ -146,9 +152,9 @@ def module(svg, top=26):
 # ── 模块 ─────────────────────────────────────────────────
 def hero_numeral():
     """「08」先以黄色描边画出，再填成白色。打开文章时播放一次。"""
-    return (svg_open(300, 150, "margin-top:30px;pointer-events:none;")
-            + '<text x="-6" y="140" font-size="168" font-weight="700" letter-spacing="-8" fill="#FFFFFF" '
-              f'fill-opacity="1" stroke="{YELLOW}" stroke-width="1.2" stroke-opacity="0" '
+    return (svg_open(300, 140, "margin-top:26px;pointer-events:none;")
+            + '<text x="150" y="132" font-size="160" font-weight="700" letter-spacing="-6" text-anchor="middle" '
+              f'fill="#FFFFFF" fill-opacity="1" stroke="{YELLOW}" stroke-width="1.2" stroke-opacity="0" '
               'stroke-dasharray="560" stroke-dashoffset="0">08'
               '<set attributeName="fill-opacity" to="0" begin="0s"/>'
               '<set attributeName="stroke-opacity" to="1" begin="0s"/>'
@@ -157,38 +163,56 @@ def hero_numeral():
               'calcMode="spline" keyTimes="0;1" keySplines="0.45 0 0.25 1"/>'
               '<animate attributeName="fill-opacity" values="0;1" dur="0.8s" begin="1.6s" fill="freeze"/>'
               '<animate attributeName="stroke-opacity" values="1;0" dur="0.6s" begin="2.2s" fill="freeze"/>'
-              '</text>'
-            + t(300, 66, "第 8 期", 13, "#FFFFFF", 600, "end", 1)
-            + t(300, 88, "线下实操课", 13, NIGHT_TEXT, anchor="end", ls=1)
-            + t(300, 118, "2026.10.12", 12, NIGHT_TEXT, anchor="end", ls=0.5)
-            + t(300, 136, "— 10.16", 12, NIGHT_TEXT, anchor="end", ls=0.5)
-            + "</svg>")
+              '</text></svg>')
+
+
+def glow_panel(svg, bg, top=26, radius=22):
+    """深色/品牌蓝模块：底色用 CSS 渐变铺在外层（被过滤时退回 background-color），SVG 透明叠在上面。"""
+    return (f'<section style="margin-top:{top}px;border-radius:{radius}px;overflow:hidden;line-height:0;font-size:0;'
+            f'{bg}">{svg}</section>')
 
 
 def loop_diagram():
-    """课堂节奏：讲一步 → 跟着做 → 逐个查看 → 一起解决，黄点沿环一直走。"""
-    W, H, cx, cy, r = 343, 300, 171.5, 160, 80
-    nodes = [(cx, cy - r, "讲一步", cx, cy - r - 18, "middle"),
-             (cx + r, cy, "跟着做", cx + r + 16, cy + 5, "start"),
-             (cx, cy + r, "逐个查看", cx, cy + r + 26, "middle"),
-             (cx - r, cy, "一起解决", cx - r - 16, cy + 5, "end")]
+    """课堂节奏：讲一步 → 跟着做 → 逐个查看 → 一起解决。发光轨道 + 带拖尾的黄点循环，外圈虚线缓慢旋转。"""
+    W, H, cx, cy, r = 343, 330, 171.5, 172, 80
+    lt = "#8FB0FF"
+    nodes = [(cx, cy - r, "讲一步", cx, cy - r - 20, "middle"),
+             (cx + r, cy, "跟着做", cx + r + 18, cy + 5, "start"),
+             (cx, cy + r, "逐个查看", cx, cy + r + 30, "middle"),
+             (cx - r, cy, "一起解决", cx - r - 18, cy + 5, "end")]
     out = (svg_open(W, H, "pointer-events:none;")
-           + f'<rect x="0" y="0" width="{W}" height="{H}" rx="22" fill="{TILE}"/>'
-           + t(22, 36, "课堂节奏", 12, BLUE, 600, ls=2)
-           + f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="#D5DBE6" stroke-width="1.5"/>'
-           + t(cx, cy - 4, "每一步", 14, MUTED, anchor="middle", ls=1)
-           + t(cx, cy + 20, "都这样走一遍", 16, INK, 700, "middle", 1))
+           + t(22, 38, "课堂节奏", 12, YELLOW, 600, ls=3)
+           + t(321, 38, "一步一循环", 12, lt, anchor="end", ls=1)
+           # 外圈虚线，40 秒转一圈
+           + f'<g><animateTransform attributeName="transform" type="rotate" from="0 {cx} {cy}" to="360 {cx} {cy}" '
+             'dur="40s" repeatCount="indefinite"/>'
+           + f'<circle cx="{cx}" cy="{cy}" r="{r + 36}" fill="none" stroke="#FFFFFF" stroke-opacity="0.16" '
+             'stroke-width="1" stroke-dasharray="2 7"/></g>'
+           + f'<circle cx="{cx}" cy="{cy}" r="{r - 30}" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="1"/>'
+           # 发光轨道：三层描边叠出光晕
+           + f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{lt}" stroke-opacity="0.07" stroke-width="16"/>'
+           + f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{lt}" stroke-opacity="0.14" stroke-width="7"/>'
+           + f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{lt}" stroke-opacity="0.85" stroke-width="1.2"/>'
+           + t(cx, cy - 4, "每一步", 13, lt, anchor="middle", ls=2)
+           + t(cx, cy + 20, "都这样走一遍", 16, "#FFFFFF", 700, "middle", 1))
     for i, (x, y, label, lx, ly, anchor) in enumerate(nodes):
         b = f"{1.5 * i}s"
-        out += (f'<circle cx="{x}" cy="{y}" r="7" fill="#FFFFFF" stroke="{BLUE}" stroke-width="1.5">'
-                f'<animate attributeName="r" values="7;10;7;7" keyTimes="0;0.06;0.18;1" dur="6s" begin="{b}" repeatCount="indefinite"/>'
-                f'<animate attributeName="fill" values="{BLUE};{BLUE};#FFFFFF;#FFFFFF" keyTimes="0;0.1;0.2;1" dur="6s" begin="{b}" repeatCount="indefinite"/>'
+        out += (f'<circle cx="{x}" cy="{y}" r="14" fill="{YELLOW}" opacity="0">'
+                f'<animate attributeName="opacity" values="0;0.35;0;0" keyTimes="0;0.06;0.22;1" dur="6s" begin="{b}" repeatCount="indefinite"/>'
+                f'<animate attributeName="r" values="8;18;22;22" keyTimes="0;0.06;0.22;1" dur="6s" begin="{b}" repeatCount="indefinite"/>'
                 "</circle>"
-                + t(lx, ly, label, 14, INK, 600, anchor, 1))
-    out += (f'<circle cx="{cx}" cy="{cy - r}" r="5" fill="{YELLOW}">'
-            f'<animateMotion path="M0,0 A{r},{r} 0 0 1 0,{2 * r} A{r},{r} 0 0 1 0,0" dur="6s" repeatCount="indefinite"/>'
-            "</circle></svg>")
-    return module(out)
+                f'<circle cx="{x}" cy="{y}" r="7" fill="#0B1A44" stroke="{lt}" stroke-width="1.5">'
+                f'<animate attributeName="fill" values="{YELLOW};{YELLOW};#0B1A44;#0B1A44" keyTimes="0;0.1;0.22;1" dur="6s" begin="{b}" repeatCount="indefinite"/>'
+                "</circle>"
+                + t(lx, ly, label, 14, "#FFFFFF", 600, anchor, 1))
+    path = f"M0,0 A{r},{r} 0 0 1 0,{2 * r} A{r},{r} 0 0 1 0,0"
+    for k, (rad, op) in enumerate([(5.5, 1), (4.4, 0.55), (3.6, 0.35), (2.8, 0.2), (2, 0.1)]):
+        out += (f'<circle cx="{cx}" cy="{cy - r}" r="{rad}" fill="{YELLOW}" opacity="{op}">'
+                f'<animateMotion path="{path}" dur="6s" begin="{0.07 * k:.2f}s" repeatCount="indefinite"/></circle>')
+    bg = (f"background-color:#071233;background-image:radial-gradient(60% 50% at 50% 52%,rgba(43,108,255,0.45) 0%,"
+          "rgba(43,108,255,0) 70%),radial-gradient(70% 45% at 0% 100%,rgba(111,155,255,0.22) 0%,rgba(111,155,255,0) 70%),"
+          "linear-gradient(160deg,#0B2A86 0%,#061033 58%,#050A18 100%);")
+    return glow_panel(out + "</svg>", bg)
 
 
 def persona_card(label, question, a1, a2):
@@ -215,13 +239,12 @@ def persona_card(label, question, a1, a2):
 
 def pipeline():
     """一条视频的完整流程：轻点后黄线自上而下走完六步，最后落到「自己上手」。"""
-    W, H, x0, y0, gap = 343, 520, 40, 160, 50
+    W, H, x0, y0, gap = 343, 482, 40, 132, 50
     steps = ["挑选商品", "构思内容", "布置灯光", "拍摄", "剪辑", "发布"]
     span = gap * (len(steps) - 1)
     out = (svg_open(W, H)
            + t(24, 44, "一条视频的完整流程", 12, YELLOW, 600, ls=3)
-           + t(24, 82, "从挑选商品，", 24, "#FFFFFF", 700, ls=0.5)
-           + t(24, 114, "到最后发布。", 24, "#FFFFFF", 700, ls=0.5)
+           + t(24, 84, "从挑选商品，到最后发布。", 22, "#FFFFFF", 700, ls=0.5)
            + f'<rect x="{x0 - 0.75}" y="{y0}" width="1.5" height="{span}" fill="#26304A"/>')
     for i, s in enumerate(steps):
         y = y0 + gap * i
@@ -240,12 +263,12 @@ def pipeline():
                 + t(66, y + 6, s, 17, "#FFFFFF", 600, ls=1)
                 + t(319, y + 5, f"0{i + 1}", 12, YELLOW, ls=1))
     out += ('<g fill-opacity="1">' + fade(0, 1, "click+3.3s", "0.5s")
-            + t(24, 458, "看完之后，同学们用现场的商品和设备，", 14, "#C9CFDD", ls=0.5)
-            + t(24, 482, "自己上手拍、自己剪。", 14, "#FFFFFF", 600, ls=0.5)
+            + t(24, 420, "看完之后，同学们用现场的商品和设备，", 14, "#C9CFDD", ls=0.5)
+            + t(24, 444, "自己上手拍、自己剪。", 14, "#FFFFFF", 600, ls=0.5)
             + '<g fill-opacity="0">' + fade(1, 0, "click", "0.3s")
-            + '<rect x="24" y="444" width="295" height="46" rx="23" fill="#FFFFFF" opacity="0.08"/>'
-            + f'<path d="M44 459 L56 467 L44 475 Z" fill="{YELLOW}"/>'
-            + t(68, 472, "轻点，把流程走一遍", 15, "#FFFFFF", 600, ls=1)
+            + '<rect x="24" y="406" width="295" height="46" rx="23" fill="#FFFFFF" opacity="0.08"/>'
+            + f'<path d="M44 421 L56 429 L44 437 Z" fill="{YELLOW}"/>'
+            + t(68, 434, "轻点，把流程走一遍", 15, "#FFFFFF", 600, ls=1)
             + hit() + "</g></g>"
             + "</g>" * len(steps) + "</g></svg>")
     return (f'<section style="margin-top:26px;border-radius:22px;overflow:hidden;line-height:0;font-size:0;'
@@ -254,142 +277,149 @@ def pipeline():
 
 
 def after_timeline():
-    """五天之后：实线是线下五天，虚线一直往后流，下面是课后一直保留的三样东西。"""
+    """五天之后：品牌蓝面板。实线是线下五天，虚线一直往后流，下面是课后一直保留的三样东西。"""
     W, H = 343, 268
+    soft = "#C3D3FF"
     xs = [30 + 33.5 * i for i in range(5)]
     out = (svg_open(W, H, "pointer-events:none;")
-           + f'<rect x="0" y="0" width="{W}" height="{H}" rx="22" fill="{TILE}"/>'
-           + t(24, 40, "线下 5 天", 12, BLUE, 600, ls=2)
-           + t(190, 40, "之后", 12, MUTED, 600, ls=2)
-           + f'<line x1="{xs[0]}" y1="76" x2="{xs[-1]}" y2="76" stroke="{BLUE}" stroke-width="3" stroke-linecap="round"/>'
-           + f'<line x1="{xs[-1] + 12}" y1="76" x2="320" y2="76" stroke="{BLUE}" stroke-width="2" '
-             'stroke-linecap="round" stroke-dasharray="1 7" stroke-opacity="0.7">'
+           + t(24, 40, "线下 5 天", 12, YELLOW, 600, ls=2)
+           + t(190, 40, "之后", 12, soft, 600, ls=2)
+           + f'<line x1="{xs[0]}" y1="76" x2="{xs[-1]}" y2="76" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>'
+           + f'<line x1="{xs[-1] + 12}" y1="76" x2="320" y2="76" stroke="#FFFFFF" stroke-width="2" '
+             'stroke-linecap="round" stroke-dasharray="1 7" stroke-opacity="0.75">'
              '<animate attributeName="stroke-dashoffset" values="0;-8" dur="0.7s" repeatCount="indefinite"/></line>')
     for i, x in enumerate(xs):
-        out += (f'<circle cx="{x}" cy="76" r="4.5" fill="{BLUE}"/>'
-                + t(x, 102, str(12 + i), 11, MUTED, anchor="middle"))
+        out += (f'<circle cx="{x}" cy="76" r="4.5" fill="#FFFFFF"/>'
+                + t(x, 102, str(12 + i), 11, soft, anchor="middle"))
     out += (f'<circle cx="{xs[-1]}" cy="76" r="8" fill="{YELLOW}" opacity="0.5">'
             '<animate attributeName="r" values="6;16" dur="1.8s" repeatCount="indefinite"/>'
             '<animate attributeName="opacity" values="0.6;0" dur="1.8s" repeatCount="indefinite"/></circle>'
-            + f'<circle cx="{xs[-1]}" cy="76" r="5" fill="{YELLOW}"/>')
+            + f'<circle cx="{xs[-1]}" cy="76" r="5.5" fill="{YELLOW}"/>')
     for i, (a, b) in enumerate([("线上课程", "一直保留"), ("学员答疑群", "随时提问，持续解答"),
                                 ("专题讲解", "针对大家普遍关心的问题")]):
         y = 148 + 40 * i
-        out += (f'<rect x="24" y="{y - 26}" width="295" height="1" fill="{LINE}"/>'
-                + t(24, y, a, 15, INK, 600, ls=0.5) + t(319, y, b, 13, MUTED, anchor="end", ls=0.3))
-    return module(out + "</svg>")
+        out += ('<rect x="24" y="{0}" width="295" height="1" fill="#FFFFFF" opacity="0.18"/>'.format(y - 26)
+                + t(24, y, a, 15, "#FFFFFF", 600, ls=0.5) + t(319, y, b, 13, soft, anchor="end", ls=0.3))
+    bg = ("background-color:#003CAC;background-image:radial-gradient(70% 60% at 0% 0%,rgba(255,255,255,0.16) 0%,"
+          "rgba(255,255,255,0) 70%),radial-gradient(50% 45% at 50% 28%,rgba(255,200,51,0.16) 0%,rgba(255,200,51,0) 70%),"
+          "linear-gradient(140deg,#1257E6 0%,#003CAC 45%,#06246E 100%);")
+    return glow_panel(out + "</svg>", bg)
 
 
 # ── 正文 ─────────────────────────────────────────────────
 def article():
+    # 对齐规则：标题、引言、回答句、列表、图注居中；叙述性长段落两端对齐。
     hero = (f'<section style="border-radius:28px;overflow:hidden;background-color:{NIGHT};'
-            'background-image:radial-gradient(120% 70% at 100% 0%,rgba(0,60,172,0.62) 0%,rgba(0,60,172,0) 62%);'
-            'padding:26px 22px 22px;">'
-            '<section style="display:flex;align-items:center;justify-content:space-between;">'
-            f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:88px;height:auto;margin:0;">'
-            + p("TikTok 跨境电商", f"font-size:11px;line-height:1;color:{NIGHT_TEXT};letter-spacing:2px;")
-            + "</section>"
+            'background-image:radial-gradient(90% 55% at 50% 30%,rgba(0,60,172,0.6) 0%,rgba(0,60,172,0) 70%);'
+            'padding:30px 22px 22px;text-align:center;">'
+            f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:92px;height:auto;margin:0 auto;">'
             + hero_numeral()
-            + p("五天，<br>把路走通。", "margin-top:18px;font-size:34px;line-height:1.28;color:#FFFFFF;"
-                                      "font-weight:700;letter-spacing:0.5px;")
-            + p("第 8 期线下实操课 · 回顾", f"margin-top:12px;font-size:14px;line-height:1.6;color:{NIGHT_TEXT};letter-spacing:1px;")
-            + photo("00-hero.jpg", "第 8 期课堂，老师在写满的白板前讲解", top=24, radius=14)
+            + p("2026.10.12 — 10.16", f"margin-top:8px;font-size:12px;line-height:1.4;color:{YELLOW};"
+                                      "font-weight:600;letter-spacing:3px;text-align:center;")
+            + p("五天，把路走通。", "margin-top:14px;font-size:32px;line-height:1.3;color:#FFFFFF;"
+                                  "font-weight:700;letter-spacing:1px;text-align:center;")
+            + p("TikTok 跨境电商 · 第 8 期线下实操课回顾",
+                f"margin-top:10px;font-size:13px;line-height:1.6;color:{NIGHT_TEXT};letter-spacing:1px;text-align:center;")
+            + photo("00-hero.jpg", "第 8 期课堂，老师在写满的白板前讲解", top=26, radius=14)
             + "</section>")
 
     intro = chapter(
         p("10 月 12 日到 16 日，<br>第 8 期线下实操课结束了。",
-          f"font-size:21px;line-height:1.6;color:{INK};font-weight:700;letter-spacing:0.3px;"),
-        body("这期来的同学，情况各不相同。", top=22),
+          f"font-size:20px;line-height:1.7;color:{INK};font-weight:700;letter-spacing:0.5px;text-align:center;"),
+        center("这期来的同学，情况各不相同。", top=20),
         f'<section style="margin-top:18px;">' + rows([
             ("从零开始", "有人之前没接触过跨境电商，想从零开始了解；"),
             ("已经开店", "有人店已经开了一段时间，但一直没有起色；"),
-            ("工厂 · 品牌方", "也有工厂和品牌方，带着自家产品过来，希望团队能尽快把 TikTok 这条路跑通。"),
+            ("工厂 · 品牌方", "也有工厂和品牌方，带着自家产品过来，<br>希望团队能尽快把 TikTok 这条路跑通。"),
         ]) + "</section>",
-        body("大家来的原因不一样，", "但遇到的问题很相似：", top=26),
+        center("大家来的原因不一样，", "但遇到的问题很相似：", top=26),
         p(f"网上的东西看了不少，<br>真要自己动手，<br>{mark('还是不知道该怎么做。')}",
-          f"margin-top:14px;font-size:21px;line-height:1.65;color:{INK};font-weight:700;letter-spacing:0.3px;"),
-        body("这五天，我们就从这里开始。", top=18),
+          f"margin-top:14px;font-size:21px;line-height:1.7;color:{INK};font-weight:700;letter-spacing:0.5px;text-align:center;"),
+        center("这五天，我们就从这里开始。", top=18),
         top=44)
 
     ch1 = chapter(
-        opener(1, "看了那么多教程，", "怎么还是理不清？"),
+        opener(1, "看了那么多教程，怎么还是理不清？"),
         photo("01-whiteboard.jpg", "老师在白板前讲解", "课堂 · 10.12"),
         body("网上的内容很多，但大多是零散的。",
              "今天看一个选品技巧，明天看一个上架教程，始终串不成一条完整的路。", top=24),
-        body(strong("所以课上没有急着讲技巧，而是把整件事从头到尾梳理一遍：")),
+        answer("所以课上没有急着讲技巧，", "而是把整件事从头到尾梳理一遍："),
         f'<section style="margin-top:14px;">' + rows([
-            ("01", "这门生意是怎么运转的"), ("02", "每一步在做什么"), ("03", "前后怎么衔接"),
-        ], label_w=40) + "</section>",
-        body("讲解过程中随时可以提问，有不清楚的地方当场讲明白再往下走。", top=20))
+            (f'<span style="color:{BLUE};font-size:13px;font-weight:600;margin-right:10px;">01</span>这门生意是怎么运转的', ""),
+            (f'<span style="color:{BLUE};font-size:13px;font-weight:600;margin-right:10px;">02</span>每一步在做什么', ""),
+            (f'<span style="color:{BLUE};font-size:13px;font-weight:600;margin-right:10px;">03</span>前后怎么衔接', ""),
+        ]) + "</section>",
+        center("讲解过程中随时可以提问，", "有不清楚的地方当场讲明白再往下走。", top=20))
 
     ch2 = chapter(
-        opener(2, "看的时候都懂，", "自己一做就出问题"),
+        opener(2, "看的时候都懂，自己一做就出问题"),
         photo("02-hands-on.jpg", "学员在自己的电脑上实操，老师在旁指导", "课堂 · 10.16"),
         body("看别人操作很顺，轮到自己，往往不是这里填错，就是那里找不到入口。", top=24),
-        body(f"所以这五天里，{mark('大部分时间是同学们在自己的电脑上实际操作。')}"),
+        answer(f"所以这五天里，{mark('大部分时间')}", f"{mark('是同学们在自己的电脑上实际操作。')}"),
         body("老师讲完一步，大家跟着做一步，老师逐个查看每个人的操作，有报错、有卡住的地方，就过去一起看、一起解决。"),
         loop_diagram(),
-        body(strong("每一步都自己亲手做过，<br>回去再操作时会顺很多。"), top=22))
+        answer("每一步都自己亲手做过，", "回去再操作时会顺很多。", top=22))
 
     ch3 = chapter(
-        opener(3, "我的情况，", "跟别人不太一样"),
+        opener(3, "我的情况，跟别人不太一样"),
         p("左右滑动 →", f"margin-top:26px;font-size:12px;line-height:1;color:{MUTED};letter-spacing:2px;text-align:right;"),
         f'<section style="margin-top:10px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'
         f'-webkit-overflow-scrolling:touch;font-size:0;line-height:0;">'
         + "".join(
-            f'<section style="display:inline-block;width:{w};vertical-align:top;margin-right:{mr};white-space:normal;">'
+            f'<section style="display:inline-block;width:74%;vertical-align:top;margin-right:{mr};white-space:normal;">'
             f'<section style="border-radius:16px;overflow:hidden;line-height:0;font-size:0;">{img(n, a)}</section>'
             + caption(c) + "</section>"
-            for n, a, c, w, mr in [("03-table.jpg", "老师与学员围桌一对一交流", "一对一 · 10.14", "74%", "10px"),
-                                   ("03-phone.jpg", "老师与学员对着手机交流", "一对一 · 10.15", "74%", "0")])
+            for n, a, c, mr in [("03-table.jpg", "老师与学员围桌一对一交流", "一对一 · 10.14", "10px"),
+                                ("03-phone.jpg", "老师与学员对着手机交流", "一对一 · 10.15", "0")])
         + "</section>",
-        body("刚起步的人和已经开店的人，需要的答案不一样；", "工厂关心的问题，和个人卖家也不一样。", top=24),
-        body(f"所以除了集体授课，课程中也安排了{mark('一对一的交流时间')}。"),
-        p("你是哪一种？轻点看看。", f"margin-top:30px;font-size:13px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:2px;"),
+        center("刚起步的人和已经开店的人，", "需要的答案不一样；", "工厂关心的问题，", "和个人卖家也不一样。", top=24),
+        answer("所以除了集体授课，", f"课程中也安排了{mark('一对一的交流时间')}。"),
+        p("你是哪一种？轻点看看。",
+          f"margin-top:30px;font-size:13px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:2px;text-align:center;"),
         f'<section style="margin-top:6px;line-height:0;font-size:0;">'
         + persona_card("从零开始", "我该从哪儿开始？", "先把整件事从头到尾梳理一遍：", "怎么运转，每一步做什么，前后怎么衔接。")
         + persona_card("已经开店", "店开了，为什么一直没起色？", "打开自己的店铺后台，", "和老师一起看数据、找问题。")
         + persona_card("工厂 · 品牌方", "我的产品，适合怎么卖？", "带来自家产品，聊这个产品", "适合怎么卖、卖给谁。")
         + "</section>",
-        body(strong("针对每个人的实际情况，给出具体的建议。"), top=22))
+        answer("针对每个人的实际情况，给出具体的建议。", top=22))
 
     ch4 = chapter(
-        opener(4, "真正在做的团队，", "平时是怎么做内容的？"),
+        opener(4, "真正在做的团队，平时是怎么做内容的？"),
         photo("04-studio.jpg", "公司内容团队的拍摄现场", "拍摄间 · 10.14"),
-        body("我们的每一期线下课，都在公司里上。",
-             f"同学们上课、实操的地方，{mark('也是公司团队每天工作的地方。')}", top=24),
-        body("所以除了听课，大家还能直接看到一家 TikTok 跨境电商公司日常是怎么运转的。"),
+        center("我们的每一期线下课，都在公司里上。", "同学们上课、实操的地方，",
+               f"{mark('也是公司团队每天工作的地方。')}", top=24),
+        answer("所以除了听课，大家还能直接看到", "一家 TikTok 跨境电商公司日常是怎么运转的。"),
         body("以内容为例，我们带大家完整看了一遍员工平时的工作流程：每个环节怎么做、用什么工具、需要注意什么。"),
         pipeline(),
-        body("有问题可以直接问身边正在做这件事的同事。", top=22))
+        center("有问题可以直接问身边正在做这件事的同事。", top=22))
 
     ch5 = chapter(
-        opener(5, "五天，", "只是一个开始"),
+        opener(5, "五天，只是一个开始"),
         photo("05-classroom.jpg", "第 8 期课堂全景", "课堂 · 10.12"),
         body("五天能解决的问题是有限的。",
              "真正开始做店以后，还会遇到选品、运营、内容、数据等各种新情况，很多问题要在实际操作中才会出现。", top=24),
-        body(strong("所以课程结束并不是结束。")),
+        answer("所以课程结束并不是结束。"),
         body(f"{mark('线上课程和学员答疑群会一直保留')}，同学们回去实操中遇到的问题，可以随时在群里提出，我们会持续解答。",
              "对于大家普遍关心的问题，后续也会安排专门的讲解。"),
         after_timeline())
 
     outro = (f'<section style="margin-top:88px;border-radius:28px;overflow:hidden;background-color:{NIGHT};'
-             'background-image:radial-gradient(110% 70% at 0% 100%,rgba(0,60,172,0.6) 0%,rgba(0,60,172,0) 60%);'
-             'padding:40px 24px 26px;">'
+             'background-image:radial-gradient(90% 60% at 50% 100%,rgba(0,60,172,0.65) 0%,rgba(0,60,172,0) 70%);'
+             'padding:44px 24px 30px;text-align:center;">'
              + p("线下的五天，<br>是帮大家把路走通；<br>"
                  f'<span style="color:{YELLOW};">之后的路，<br>我们继续一起走。</span>',
-                 "font-size:27px;line-height:1.5;color:#FFFFFF;font-weight:700;letter-spacing:0.5px;")
-             + '<section style="margin-top:34px;height:1px;line-height:1px;font-size:0;'
-               'background-color:rgba(255,255,255,0.14);">&nbsp;</section>'
+                 "font-size:26px;line-height:1.55;color:#FFFFFF;font-weight:700;letter-spacing:1px;text-align:center;")
+             + '<section style="margin:34px auto 0;width:48px;height:1px;line-height:1px;font-size:0;'
+               'background-color:rgba(255,255,255,0.3);">&nbsp;</section>'
              + p(f'<span style="display:inline-block;padding:7px 14px;border-radius:999px;background-color:{YELLOW};'
                  f'color:{INK};font-size:12px;line-height:1;font-weight:700;letter-spacing:2px;">第 9 期 · 招生中</span>',
-                 "margin-top:26px;line-height:1;")
+                 "margin-top:28px;line-height:1;text-align:center;")
              + p("第 9 期线下实操课正在招生中，<br>想了解的朋友，<br>欢迎后台留言或私信我们。",
-                 "margin-top:14px;font-size:15px;line-height:1.8;color:#FFFFFF;letter-spacing:0.4px;")
-             + '<section style="margin-top:36px;display:flex;align-items:center;justify-content:space-between;">'
-             + f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:80px;height:auto;margin:0;">'
-             + p("森拓旗下 · 跨境电商实操培训", f"font-size:11px;line-height:1;color:{NIGHT_TEXT};letter-spacing:1px;")
-             + "</section></section>")
+                 "margin-top:16px;font-size:15px;line-height:1.8;color:#FFFFFF;letter-spacing:0.5px;text-align:center;")
+             + f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:84px;height:auto;margin:40px auto 0;">'
+             + p("森拓旗下 · 跨境电商实操培训",
+                 f"margin-top:12px;font-size:11px;line-height:1;color:{NIGHT_TEXT};letter-spacing:2px;text-align:center;")
+             + "</section>")
 
     foot = p("本文照片均摄于云拓会第 8 期线下实操课",
              f"margin-top:18px;font-size:12px;line-height:1.6;color:{MUTED};text-align:center;letter-spacing:1px;")
