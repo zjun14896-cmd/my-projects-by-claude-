@@ -2,159 +2,162 @@
 <html lang="zh-CN"><head><meta charset="utf-8">
 <title>Vol.08 短片图形层</title>
 <style>
-/* 图形层渲染页：render.js 逐帧调用 renderFrame(t, mode)，截图得到透明 PNG。
-   mode = "overlay"：文字、进度条、片头描边、片尾；mode = "matte"：片头「08」字形遮罩（白 = 透出画面）。
-   字体：Inter（数字/英文）+ Noto Sans SC 思源黑体（中文），均为开源可商用字体，由 render.js 注入。 */
-:root{--yellow:#FFC833;--blue:#003CAC;--night:#050A18}
+/* 图形层渲染页（第二版，亮色）。render.js 逐帧调用 renderFrame(t, mode)：
+   overlay —— 文字、logo、毛玻璃卡片的描边与投影（透明 PNG）
+   glass   —— 毛玻璃区域遮罩（白 = 玻璃），compose.py 用它把画面虚化提亮
+   glyph   —— 「08」字形遮罩，compose.py 从中采样粒子汇聚的目标点
+   字体：Inter + Noto Sans SC 思源黑体（开源可商用），由 render.js 注入。 */
+:root{--blue:#003CAC;--blue2:#2F6BFF;--yellow:#FFC833;--ink:#0E1B3D}
 html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:transparent}
-body{font-family:"Inter","PingFang SC",sans-serif;color:#fff;-webkit-font-smoothing:antialiased}
+body{font-family:"Inter","PingFang SC",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
 .abs{position:absolute}
-#matte{position:absolute;inset:0;background:#000;display:none}
-#shadeB{left:0;right:0;bottom:0;height:640px;background:linear-gradient(to top,rgba(5,10,24,.82),rgba(5,10,24,.35) 45%,rgba(5,10,24,0))}
-#shadeT{left:0;right:0;top:0;height:260px;background:linear-gradient(to bottom,rgba(5,10,24,.6),rgba(5,10,24,0))}
-#logo{left:110px;top:64px;height:76px}
-#tag{right:110px;top:84px;font:600 38px/1 "PingFang SC";letter-spacing:.12em;color:rgba(255,255,255,.92)}
-#tag b{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--yellow);margin-right:18px;vertical-align:middle;transform:translateY(-3px)}
-#bar{left:110px;right:110px;bottom:62px;height:6px;display:flex;gap:16px}
-#bar i{flex:1;background:rgba(255,255,255,.25);position:relative;overflow:hidden;border-radius:3px}
-#bar i u{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--yellow)}
-#cap{left:110px;bottom:118px}
-#kick{font:800 40px/1 "Inter";letter-spacing:.22em;color:var(--yellow);display:flex;align-items:center;gap:22px}
-#kick s{display:block;height:6px;width:72px;background:var(--yellow);transform-origin:left center}
-#line{margin-top:28px;font:700 100px/1.12 "PingFang SC";letter-spacing:.02em;white-space:nowrap}
-#line span{display:inline-block}
-#intro{inset:0}
-#introTop{left:0;right:0;top:196px;text-align:center;font:600 44px/1 "PingFang SC";letter-spacing:.4em;color:rgba(255,255,255,.85)}
-#introDate{left:0;right:0;top:830px;text-align:center;font:700 52px/1 "Inter";letter-spacing:.2em;color:var(--yellow)}
-#outro{inset:0}
-#oLine{left:0;right:0;top:300px;text-align:center;font:700 136px/1.1 "PingFang SC";letter-spacing:.04em}
-#oLine span{display:inline-block}
-#oPill{left:50%;top:530px;transform:translateX(-50%);background:var(--yellow);color:#0B0F1A;font:700 52px/1 "PingFang SC";letter-spacing:.16em;padding:24px 42px 24px 50px;border-radius:999px;white-space:nowrap}
-#oLogo{left:50%;top:730px;height:108px;transform:translateX(-50%)}
-#oSub{left:0;right:0;top:880px;text-align:center;font:600 40px/1 "PingFang SC";letter-spacing:.2em;color:rgba(255,255,255,.72)}
+.glass{border:2px solid rgba(255,255,255,.85);box-shadow:0 26px 70px rgba(0,40,120,.20),inset 0 1px 0 rgba(255,255,255,.9);box-sizing:border-box}
+body.glassmode{background:#000}
+body.glassmode .glass{background:#fff;border-color:transparent;box-shadow:none}
+body.glassmode .glass *{visibility:hidden}
+body.glassmode .nog{display:none!important}
+body.glyphmode{background:#000}
+body.glyphmode > *:not(#num){display:none!important}
+
+#introTop{left:0;right:0;top:206px;text-align:center;font:600 44px/1 "PingFang SC";letter-spacing:.42em;color:var(--ink)}
+#introDate{left:0;right:0;top:836px;text-align:center;font:700 52px/1 "Inter";letter-spacing:.2em;color:var(--blue)}
 svg{position:absolute;left:0;top:0}
+
+#pillL{left:92px;top:68px;border-radius:999px;padding:14px 30px}
+#pillL img{display:block;height:58px}
+#pillR{right:92px;top:72px;border-radius:999px;padding:20px 34px;font:600 36px/1 "PingFang SC";letter-spacing:.1em;white-space:nowrap}
+#pillR b{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--yellow);margin-right:18px;vertical-align:middle;transform:translateY(-3px);box-shadow:0 0 0 5px rgba(255,200,51,.28)}
+#card{left:92px;bottom:88px;border-radius:40px;padding:36px 48px 34px;width:1010px}
+#kickRow{display:flex;align-items:center;gap:22px;font:800 30px/1 "Inter";letter-spacing:.2em}
+#idx{color:rgba(14,27,61,.45);letter-spacing:.06em;font-weight:600}
+#kick{color:var(--blue)}
+#kickRow s{display:block;width:44px;height:4px;border-radius:2px;background:var(--yellow)}
+#line{margin-top:20px;font:700 80px/1.15 "PingFang SC";letter-spacing:.02em;white-space:nowrap;color:var(--ink)}
+#line span{display:inline-block}
+#bar{margin-top:30px;height:8px;display:flex;gap:12px}
+#bar i{flex:1;position:relative;overflow:hidden;border-radius:4px;background:rgba(0,60,172,.14)}
+#bar i u{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:4px;background:linear-gradient(90deg,var(--blue),var(--blue2))}
+
+#oLine{left:0;right:0;top:318px;text-align:center;font:700 142px/1.1 "PingFang SC";letter-spacing:.04em;color:var(--ink)}
+#oLine span{display:inline-block}
+#oPill{left:50%;top:548px;background:var(--yellow);color:var(--ink);font:700 54px/1 "PingFang SC";letter-spacing:.16em;padding:26px 44px 26px 52px;border-radius:999px;white-space:nowrap;box-shadow:0 22px 50px rgba(255,170,0,.30)}
+#oLogo{left:50%;top:740px;height:132px}
 </style></head>
 <body>
-<div id="matte"></div>
-<div id="shadeT" class="abs"></div>
-<div id="shadeB" class="abs"></div>
-<img id="logo" class="abs" src="../img/logo-white.png" alt="">
-<div id="tag" class="abs"><b></b>第 8 期 · 线下实操课</div>
-<div id="bar" class="abs"><i><u></u></i><i><u></u></i><i><u></u></i><i><u></u></i><i><u></u></i></div>
-<div id="cap" class="abs"><div id="kick"><s></s><span></span></div><div id="line"></div></div>
-<div id="intro" class="abs">
-  <div id="introTop" class="abs">云拓会 · 线下实操课</div>
-  <div id="introDate" class="abs">2026.10.12 — 10.16</div>
-</div>
-<svg id="num" width="1920" height="1080" viewBox="0 0 1920 1080">
+<div id="introTop" class="abs nog">云拓会 · 线下实操课</div>
+<svg id="num" class="nog" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs><linearGradient id="g08" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#2F6BFF"/><stop offset=".55" stop-color="#003CAC"/><stop offset="1" stop-color="#0A2A7A"/>
+  </linearGradient></defs>
   <g id="zoom"><text id="n08" x="960" y="780" text-anchor="middle" font-family="Inter" font-weight="800" font-size="600" letter-spacing="-20">08</text></g>
 </svg>
-<div id="outro" class="abs">
-  <div id="oLine" class="abs"></div>
-  <div id="oPill" class="abs">第 9 期 · 招生中</div>
-  <img id="oLogo" class="abs" src="../img/logo-white.png" alt="">
-  <div id="oSub" class="abs">森拓旗下 · 跨境电商实操培训</div>
+<div id="introDate" class="abs nog">2026.10.12 — 10.16</div>
+
+<div id="pillL" class="abs glass"><img src="../img/logo-color.png" alt=""></div>
+<div id="pillR" class="abs glass"><b></b>第 8 期 · 线下实操课</div>
+<div id="card" class="abs glass">
+  <div id="kickRow"><span id="idx">01 / 05</span><s></s><span id="kick">LEARN</span></div>
+  <div id="line"></div>
+  <div id="bar"><i><u></u></i><i><u></u></i><i><u></u></i><i><u></u></i><i><u></u></i></div>
 </div>
+
+<div id="oLine" class="abs nog"></div>
+<div id="oPill" class="abs nog">第 9 期 · 招生中</div>
+<img id="oLogo" class="abs nog" src="../img/logo-color.png" alt="">
 <script>
 const SEGS = [
   ["LEARN", "把整件事，从头梳理一遍"],
   ["PRACTICE", "讲一步，做一步"],
   ["ONE ON ONE", "一对一，看你的情况"],
   ["CREATE", "从拍摄，到剪辑"],
-  ["THINK", "这个产品，到底有什么可以卖？"],
+  ["AI", "AI 教学，用新工具做跨境"],
 ];
+const SEG0 = 4.0, SEGLEN = 2.0;
 const $ = id => document.getElementById(id);
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const prog = (t, a, b) => clamp((t - a) / (b - a));
 const outExpo = x => x >= 1 ? 1 : 1 - Math.pow(2, -10 * x);
 const inOut = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-const inCubic = x => x * x * x;
+const outBack = x => { const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
 function splitInto(el, text) {
   el.innerHTML = "";
   for (const ch of text) { const s = document.createElement("span"); s.textContent = ch === " " ? " " : ch; el.appendChild(s); }
 }
-// 文字逐字浮现：上移 + 去模糊 + 淡入
 function reveal(el, t, start, stagger, dur, exitAt, exitDur) {
   [...el.children].forEach((s, i) => {
     const p = outExpo(prog(t, start + i * stagger, start + i * stagger + dur));
-    const q = exitAt == null ? 0 : inOut(prog(t, exitAt + i * stagger * .5, exitAt + exitDur + i * stagger * .5));
+    const q = exitAt == null ? 0 : inOut(prog(t, exitAt + i * stagger * .4, exitAt + exitDur + i * stagger * .4));
     s.style.opacity = p * (1 - q);
-    s.style.transform = `translateY(${(1 - p) * 46 - q * 30}px)`;
-    s.style.filter = `blur(${(1 - p) * 14 + q * 8}px)`;
+    s.style.transform = `translateY(${(1 - p) * 50 - q * 26}px)`;
+    s.style.filter = `blur(${(1 - p) * 16 + q * 10}px)`;
   });
 }
-const N08 = $("n08");
-// 推进中心：「8」笔画最粗处（对 matte 帧做距离变换求得，半径约 50px），推进时同时移到画面中央
-const PIVOT = { x: 1280, y: 628 };
-function zoomPivot() { return PIVOT; }
 window.renderFrame = (t, mode) => {
-  const matte = mode === "matte";
-  document.body.style.background = "transparent";
-  $("matte").style.display = matte ? "block" : "none";
-  for (const id of ["shadeT", "shadeB", "logo", "tag", "bar", "cap", "intro", "outro"]) $(id).style.display = matte ? "none" : "";
+  document.body.className = mode === "glass" ? "glassmode" : mode === "glyph" ? "glyphmode" : "";
+  const N08 = $("n08");
 
-  // ── 片头「08」：0.1–0.95s 描边，0.85–1.25s 字形透出画面，1.3–2.0s 推进穿过字形 ──
-  const pv = zoomPivot();
-  const zp = prog(t, 1.3, 2.0);
-  // Chrome 放大文字超过约 15 倍会丢字形，所以推进到 14 倍为止，最后 0.16 秒把遮罩整体淡成全白
-  const sc = Math.exp(Math.log(14) * inCubic(zp));
-  const cxp = pv.x + (960 - pv.x) * inOut(zp), cyp = pv.y + (540 - pv.y) * inOut(zp);
-  $("zoom").setAttribute("transform", `translate(${cxp} ${cyp}) scale(${sc}) translate(${-pv.x} ${-pv.y})`);
-  $("num").style.display = t < 2.05 ? "" : "none";
-  if (matte) {
-    N08.setAttribute("fill", "#fff");
-    N08.setAttribute("fill-opacity", t >= 2.0 ? 1 : inOut(prog(t, 0.85, 1.25)));
-    N08.setAttribute("stroke", "none");
-    const w = Math.round(255 * inOut(prog(t, 1.82, 1.98)));
-    $("matte").style.background = `rgb(${w},${w},${w})`;
+  // ── 片头 0–2.1s：粒子汇聚后「08」填色，1.9s 炫光爆开时放大淡出 ──
+  if (mode === "glyph") {
+    $("num").style.display = ""; $("num").style.opacity = 1;
+    N08.setAttribute("fill", "#fff"); N08.setAttribute("fill-opacity", 1);
+    $("zoom").removeAttribute("transform");
     return;
   }
-  const draw = inOut(prog(t, 0.1, 0.95));
-  N08.setAttribute("fill", "#FFFFFF");
-  N08.setAttribute("fill-opacity", 0.0);
-  N08.setAttribute("stroke", "#FFC833");
-  N08.setAttribute("stroke-width", 5 / Math.max(1, sc * 0.6));
-  N08.setAttribute("stroke-dasharray", "4200 99999");
-  N08.setAttribute("stroke-dashoffset", String(4200 * (1 - draw)));
-  N08.setAttribute("stroke-opacity", draw <= 0 ? 0 : 1 - prog(t, 1.15, 1.5));
-  const io = prog(t, 0.3, 0.8) * (1 - prog(t, 1.15, 1.4));
-  $("introTop").style.opacity = io; $("introTop").style.transform = `translateY(${(1 - outExpo(prog(t, .3, .9))) * 20}px)`;
-  $("introDate").style.opacity = io; $("introDate").style.letterSpacing = `${0.6 - 0.24 * outExpo(prog(t, .3, 1.1))}em`;
-  $("intro").style.display = t < 1.5 ? "" : "none";
+  N08.setAttribute("fill", "url(#g08)");
+  const fill = inOut(prog(t, 1.0, 1.45));
+  const burst = inOut(prog(t, 1.88, 2.1));
+  N08.setAttribute("fill-opacity", fill);
+  $("zoom").setAttribute("transform", `translate(960 560) scale(${1 + 0.35 * burst}) translate(-960 -560)`);
+  $("num").style.display = t < 2.15 ? "" : "none";
+  $("num").style.opacity = 1 - burst;
+  const io = prog(t, 0.9, 1.4) * (1 - prog(t, 1.85, 2.0));
+  $("introTop").style.opacity = io;
+  $("introTop").style.transform = `translateY(${(1 - outExpo(prog(t, .9, 1.5))) * 24}px)`;
+  $("introDate").style.opacity = io;
+  $("introDate").style.letterSpacing = `${0.5 - 0.3 * outExpo(prog(t, .95, 1.7))}em`;
+  for (const id of ["introTop", "introDate"]) $(id).style.display = t < 2.1 ? "" : "none";
 
-  // ── 现场五段：2–12s ──
-  const hud = prog(t, 2.05, 2.35) * (1 - prog(t, 11.75, 12.05));
-  for (const id of ["shadeT", "shadeB", "logo", "tag", "bar"]) $(id).style.opacity = hud;
-  const seg = clamp(Math.floor((t - 2) / 2), 0, 4);
-  [...$("bar").children].forEach((el, i) => {
-    const u = el.firstChild;
-    if (t < 2 || i > seg) { u.style.width = "0%"; u.style.background = "#FFC833"; return; }
-    if (i < seg) { u.style.width = "100%"; u.style.background = "rgba(255,255,255,.9)"; return; }
-    u.style.width = `${prog(t, 2 + 2 * i, 4 + 2 * i) * 100}%`; u.style.background = "#FFC833";
-  });
-  if (t >= 2 && t < 12) {
-    const s0 = 2 + 2 * seg;
+  // ── 现场五段 4–14s：毛玻璃 HUD ──
+  const hudIn = outExpo(prog(t, 4.05, 4.55)), hudOut = inOut(prog(t, 13.65, 13.95));
+  const hud = hudIn * (1 - hudOut);
+  const showHud = t >= 4.0 && t < 14.0;
+  for (const id of ["pillL", "pillR", "card"]) $(id).style.display = showHud ? "" : "none";
+  $("pillL").style.opacity = hud; $("pillL").style.transform = `translateY(${(1 - hudIn) * -30}px)`;
+  $("pillR").style.opacity = hud; $("pillR").style.transform = `translateY(${(1 - hudIn) * -30}px)`;
+  $("card").style.opacity = hud;
+  $("card").style.transform = `translateY(${(1 - hudIn) * 60 + hudOut * 40}px) scale(${0.96 + 0.04 * hudIn})`;
+  $("card").style.transformOrigin = "left bottom";
+  if (showHud) {
+    const seg = clamp(Math.floor((t - SEG0) / SEGLEN), 0, 4);
+    const s0 = SEG0 + SEGLEN * seg;
     const [k, line] = SEGS[seg];
-    if ($("line").dataset.seg !== String(seg)) { splitInto($("line"), line); $("kick").lastChild.textContent = k; $("line").dataset.seg = seg; }
-    $("cap").style.display = "";
-    reveal($("line"), t, s0 + 0.18, 0.028, 0.55, s0 + 1.68, 0.22);
-    const kp = outExpo(prog(t, s0 + 0.1, s0 + 0.6)), kq = prog(t, s0 + 1.7, s0 + 1.9);
-    $("kick").style.opacity = kp * (1 - kq);
-    $("kick").firstChild.style.transform = `scaleX(${kp})`;
-    $("kick").style.transform = `translateX(${(1 - kp) * -24}px)`;
-  } else $("cap").style.display = "none";
+    if ($("line").dataset.seg !== String(seg)) {
+      splitInto($("line"), line); $("kick").textContent = k; $("idx").textContent = `0${seg + 1} / 05`; $("line").dataset.seg = seg;
+    }
+    const first = seg === 0;
+    reveal($("line"), t, s0 + (first ? 0.3 : 0.1), 0.03, 0.55, seg < 4 ? s0 + 1.72 : null, 0.2);
+    const kp = outExpo(prog(t, s0 + (first ? 0.25 : 0.05), s0 + 0.55)), kq = seg < 4 ? prog(t, s0 + 1.75, s0 + 1.92) : 0;
+    $("kickRow").style.opacity = kp * (1 - kq);
+    $("kickRow").style.transform = `translateX(${(1 - kp) * -30}px)`;
+    $("kickRow").querySelector("s").style.transform = `scaleX(${kp})`;
+    [...$("bar").children].forEach((el, i) => {
+      const u = el.firstChild;
+      u.style.width = i < seg ? "100%" : i > seg ? "0%" : `${prog(t, s0, s0 + SEGLEN) * 100}%`;
+    });
+  }
 
-  // ── 片尾：12–15s ──
-  $("outro").style.display = t >= 12 ? "" : "none";
-  if (t >= 12) {
+  // ── 片尾 16–18s ──
+  const end = t >= 16.0;
+  for (const id of ["oLine", "oPill", "oLogo"]) $(id).style.display = end ? "" : "none";
+  if (end) {
     if (!$("oLine").dataset.ready) { splitInto($("oLine"), "五天，把路走通。"); $("oLine").dataset.ready = 1; }
-    reveal($("oLine"), t, 12.25, 0.06, 0.7);
-    const pp = outExpo(prog(t, 13.0, 13.5));
-    $("oPill").style.opacity = pp;
-    $("oPill").style.transform = `translateX(-50%) scale(${0.86 + 0.14 * pp})`;
-    const lp = outExpo(prog(t, 13.3, 13.9));
-    $("oLogo").style.opacity = lp; $("oLogo").style.transform = `translateX(-50%) translateY(${(1 - lp) * 18}px)`;
-    $("oSub").style.opacity = outExpo(prog(t, 13.5, 14.1)) * 1;
+    reveal($("oLine"), t, 16.15, 0.055, 0.7);
+    const pp = outBack(prog(t, 16.75, 17.25));
+    $("oPill").style.opacity = prog(t, 16.75, 17.0);
+    $("oPill").style.transform = `translateX(-50%) scale(${0.7 + 0.3 * pp})`;
+    const lp = outExpo(prog(t, 17.0, 17.6));
+    $("oLogo").style.opacity = lp;
+    $("oLogo").style.transform = `translateX(-50%) translateY(${(1 - lp) * 26}px)`;
   }
 };
 </script>

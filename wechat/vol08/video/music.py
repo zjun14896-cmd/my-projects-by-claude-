@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""第 8 期 15 秒短片配乐：原创电子节拍，全部由代码合成（无采样、无版权素材）。
+"""第 8 期 18 秒短片配乐（第二版，明亮大调）：原创电子节拍，全部由代码合成（无采样、无版权素材）。
 
-120 BPM，一拍 0.5 秒，一小节 2 秒，与画面结构一一对应：
-  0–2s   片头：低频轰鸣 + 噪声上扬 + 军鼓滚奏，1.95s 留 50ms 空拍
-  2s     落点：重拍（底鼓 + 次低频 + 镲片）
-  2–12s  五段现场：四拍底鼓、二四拍拍手、反拍踩镲、侧链贝斯、十六分琶音、柔和铺底
-          和弦 Am → F → C → G → E，每 2 秒换一次，切换点前有扫频「唰」声
-  12s    收束重拍，鼓组停止，Am(add9) 长音铺底 + 混响尾音
-  13s    「第 9 期 · 招生中」出现时一声亮音
+120 BPM，一拍 0.5 秒，一小节 2 秒，共 9 小节，与画面一一对应（F 大调）：
+  0–2s    粒子汇聚：Fmaj9 铺底渐强 + 高音闪烁琶音 + 噪声上扬，1.98s 爆开
+  2–4s    拼贴墙：半拍底鼓 + 十六分琶音 + 上扬，最后半小节军鼓滚奏
+  4–14s   五段现场：四拍底鼓、二四拍拍手、反拍踩镲、侧链贝斯、琶音、和弦 F C Dm Bb C
+          切换点 6/8/10/12s 前有扫频「唰」，切点上有冲击音
+  14–16s  拉回拼贴墙并化为粒子：鼓组退出，Bb → C 铺底 + 闪烁琶音 + 上扬
+  16–18s  落款：F(add9) 大和弦重拍 + 亮音 + 混响尾音
 用法：python3 music.py out.wav
 """
 import sys
@@ -19,7 +19,7 @@ from scipy import signal
 SR = 44100
 BPM = 120
 BEAT = 60 / BPM
-DUR = 15.0
+DUR = 18.0
 N = int(SR * DUR)
 rng = np.random.default_rng(8)
 
@@ -186,103 +186,133 @@ def chime(freq, sec=2.0):
 
 
 # ── 编曲 ─────────────────────────────────────────────────
+def impact():
+    """切点冲击：高通噪声爆 + 短促正弦下滑。"""
+    sec = 0.7
+    t = t_axis(sec)
+    n = hp(rng.standard_normal(len(t)), 1500) * np.exp(-t / 0.18) * 0.35
+    f = 220 * np.exp(-t / 0.08) + 60
+    tone = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.25) * 0.5
+    return n + tone
+
+
 def compose():
     drums = np.zeros(N)
     music = np.zeros(N)
     low = np.zeros(N)
     fx = np.zeros(N)
 
-    # 和弦（MIDI）：Am F C G E，每小节 2 秒
-    chords = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62], [52, 56, 59]]
-    roots = [45, 41, 48, 43, 40]
+    # F 大调：F C Dm Bb C（4–14s），铺底与琶音用高八度，整体明亮
+    chords = [[53, 57, 60, 64], [48, 52, 55, 62], [50, 53, 57, 60], [46, 50, 53, 57], [48, 52, 55, 60]]
+    roots = [41, 36, 38, 34, 36]
 
-    # 片头 0–2s
-    place(low, sub_boom(1.8, 55), 0.0, 0.9)
-    place(music, pad([note(n) for n in (57, 64, 71)], 2.0, attack=1.2, release=0.3, bright=1200), 0.0, 0.8)
+    def arp(t0, notes, steps=16, oct_=24, gain=0.5):
+        seq = [0, 1, 2, 3, 2, 1, 3, 2]
+        for k in range(steps):
+            n_ = notes[seq[k % 8]] + oct_
+            place(music, pluck(note(n_)), t0 + k * BEAT / 4, gain * (1.0 + 0.4 * (k % 4 == 0)))
+
+    # 0–2s 粒子汇聚
+    place(music, pad([note(n) for n in (53, 60, 64, 67, 69)], 2.1, attack=1.4, release=0.3, bright=2600), 0.0, 0.9)
+    for k in range(8):
+        place(music, chime(note([77, 81, 84, 88, 84, 81, 88, 91][k])), 0.25 + k * 0.2, 0.35 + 0.05 * k)
     t = t_axis(1.95)
-    riser = bp(rng.standard_normal(len(t)), 500, 7000) * (t / 1.95) ** 2.2 * 0.5
-    place(fx, riser, 0.0)
-    rise = np.sin(2 * np.pi * np.cumsum(220 * 2 ** (2.2 * t / 1.95)) / SR) * (t / 1.95) ** 2 * 0.12
-    place(fx, rise, 0.0)
-    for k in range(4):                       # 1.0–1.5s：八分
-        place(drums, clap() * 0.35, 1.0 + k * BEAT / 4, 0.35 + 0.05 * k)
-    for k in range(8):                       # 1.5–1.95s：十六分
-        place(drums, clap() * 0.4, 1.5 + k * BEAT / 8 * 0.9, 0.5 + 0.06 * k)
+    place(fx, bp(rng.standard_normal(len(t)), 800, 9000) * (t / 1.95) ** 2.4 * 0.45, 0.0)
+    place(fx, np.sin(2 * np.pi * np.cumsum(330 * 2 ** (2.0 * t / 1.95)) / SR) * (t / 1.95) ** 2 * 0.1, 0.0)
+    place(low, sub_boom(1.6, 43.65), 0.0, 0.5)
 
-    # 落点 2.0s
-    place(drums, kick(big=True), 2.0, 1.0)
-    place(low, sub_boom(1.2, 45), 2.0, 0.8)
-    place(drums, crash(2.0), 2.0, 1.0)
+    # 1.98s 爆开
+    place(drums, kick(big=True), 1.98, 1.0)
+    place(drums, crash(2.2), 1.98, 1.0)
+    place(fx, impact(), 1.98, 0.9)
+    place(low, sub_boom(1.2, 43.65), 1.98, 0.7)
 
-    # 主体 2–12s
+    # 2–4s 拼贴墙：半拍底鼓 + 琶音 + 滚奏
+    for b in (0, 2):
+        if b:
+            place(drums, kick(), 2.0 + b * BEAT, 0.85)
+    place(drums, clap(), 2.0 + 3 * BEAT, 0.6)
+    arp(2.0, chords[0], gain=0.42)
+    place(music, pad([note(n) for n in chords[0]], 2.0, attack=0.2, release=0.3, bright=2400), 2.0, 0.5)
+    for k in range(8):
+        place(drums, clap(), 3.0 + k * BEAT / 4, 0.25 + 0.06 * k)
+    t = t_axis(1.0)
+    place(fx, bp(rng.standard_normal(len(t)), 1000, 9000) * (t / 1.0) ** 2 * 0.4, 3.0)
+    place(fx, whoosh(0.45), 3.55, 0.9)
+
+    # 4–14s 五段现场
+    place(drums, kick(big=True), 4.0, 1.0)
+    place(drums, crash(1.8), 4.0, 0.8)
     for bar in range(5):
-        t0 = 2.0 + bar * 2.0
+        t0 = 4.0 + bar * 2.0
         for b in range(4):
             tb = t0 + b * BEAT
             if not (bar == 0 and b == 0):
-                place(drums, kick(), tb, 0.95)
+                place(drums, kick(), tb, 0.92)
             if b in (1, 3):
-                place(drums, clap(), tb, 0.8)
-            place(drums, hat(), tb + BEAT / 2, 0.8)
-            place(drums, hat(), tb + BEAT / 4, 0.22)
-            place(drums, hat(), tb + 3 * BEAT / 4, 0.22)
-            # 贝斯：反拍进入（侧链感）
+                place(drums, clap(), tb, 0.75)
+            place(drums, hat(), tb + BEAT / 2, 0.75)
+            place(drums, hat(), tb + BEAT / 4, 0.2)
+            place(drums, hat(), tb + 3 * BEAT / 4, 0.2)
             place(low, bass(note(roots[bar]), BEAT / 2 - 0.02), tb + BEAT / 2, 1.0)
-            place(low, bass(note(roots[bar] + 12), BEAT / 4 - 0.02), tb + 3 * BEAT / 4, 0.5)
-        # 十六分琶音
-        arp = chords[bar] + [chords[bar][0] + 12]
-        for k in range(16):
-            n_ = arp[[0, 1, 2, 3, 2, 1, 2, 3][k % 8]] + 12
-            place(music, pluck(note(n_)), t0 + k * BEAT / 4, 0.55 + 0.25 * (k % 4 == 0))
-        place(music, pad([note(n) for n in chords[bar]], 2.0, attack=0.15, release=0.3), t0, 0.55)
-        # 小节切换：唰 + 轻镲
+            place(low, bass(note(roots[bar] + 12), BEAT / 4 - 0.02), tb + 3 * BEAT / 4, 0.45)
+        arp(t0, chords[bar], gain=0.5)
+        place(music, pad([note(n + 12) for n in chords[bar][:3]], 2.0, attack=0.12, release=0.3, bright=3000), t0, 0.5)
         if bar < 4:
-            place(fx, whoosh(0.45), t0 + 2.0 - 0.45, 0.9)
-            place(drums, crash(1.0), t0 + 2.0, 0.28)
-        if bar == 4:                          # 收束前：空半拍
-            pass
+            place(fx, whoosh(0.45), t0 + 2.0 - 0.45, 0.95)
+            place(fx, impact(), t0 + 2.0, 0.7)
+            place(drums, crash(1.0), t0 + 2.0, 0.3)
 
-    # 收束 12–15s
-    place(drums, kick(big=True), 12.0, 1.0)
-    place(low, sub_boom(2.6, 55), 12.0, 0.9)
-    place(drums, crash(2.8), 12.0, 1.1)
-    place(fx, whoosh(0.5), 11.5, 1.0)
-    place(music, pad([note(n) for n in (45, 57, 60, 64, 71)], 3.0, attack=0.05, release=1.6, bright=2600), 12.0, 1.0)
-    for k, n_ in enumerate([69, 72, 76, 79, 81, 76]):
-        place(music, pluck(note(n_), 0.5), 12.0 + k * BEAT / 2, 0.5 * (0.85 ** k))
-    place(fx, chime(note(88)), 13.0, 1.0)
-    place(fx, chime(note(83)), 13.0, 0.6)
+    # 14–16s 拉回、化为粒子
+    place(fx, impact(), 14.0, 0.8)
+    place(drums, crash(2.4), 14.0, 0.6)
+    place(low, sub_boom(1.6, 46.25), 14.0, 0.6)
+    place(music, pad([note(n) for n in (46, 53, 58, 62, 65)], 1.0, attack=0.05, release=0.4, bright=2400), 14.0, 0.8)
+    place(music, pad([note(n) for n in (48, 55, 60, 64, 67)], 1.0, attack=0.05, release=0.4, bright=2800), 15.0, 0.8)
+    for k in range(16):
+        place(music, chime(note([82, 86, 89, 94, 89, 86, 91, 96][k % 8])), 14.0 + k * BEAT / 4, 0.18 + 0.012 * k)
+    t = t_axis(1.95)
+    place(fx, bp(rng.standard_normal(len(t)), 900, 10000) * (t / 1.95) ** 2.6 * 0.45, 14.05)
+    place(fx, whoosh(0.5), 15.5, 1.0)
 
-    # 侧链：主体段内每拍压低铺底与贝斯
+    # 16–18s 落款
+    place(drums, kick(big=True), 16.0, 1.0)
+    place(low, sub_boom(2.2, 43.65), 16.0, 0.9)
+    place(drums, crash(2.4), 16.0, 1.0)
+    place(fx, impact(), 16.0, 0.6)
+    place(music, pad([note(n) for n in (41, 53, 60, 64, 67, 72)], 2.0, attack=0.04, release=1.4, bright=3200), 16.0, 1.0)
+    for k, n_ in enumerate([77, 81, 84, 88, 89, 84]):
+        place(music, pluck(note(n_), 0.5), 16.0 + k * BEAT / 2, 0.5 * (0.85 ** k))
+    place(fx, chime(note(93)), 16.75, 1.0)
+    place(fx, chime(note(88)), 16.75, 0.6)
+
+    # 侧链：五段现场每拍压低铺底与贝斯
     duck = np.ones(N)
     for k in range(20):
-        tb = 2.0 + k * BEAT
-        i = int(tb * SR)
+        i = int((4.0 + k * BEAT) * SR)
         n_ = int(0.22 * SR)
         duck[i:i + n_] = np.minimum(duck[i:i + n_], 0.35 + 0.65 * np.linspace(0, 1, n_) ** 1.5)
     music *= duck
     low *= np.maximum(duck, 0.55)
 
     music = delay(music, BEAT * 0.75, fb=0.3, mix=0.25)
-    music = reverb(music, 2.4, wet=0.28)
+    music = reverb(music, 2.4, wet=0.3)
     drums = drums + reverb(drums * 0.3, 1.0, wet=1.0) * 0.15
     fx = reverb(fx, 2.0, wet=0.3)
 
-    mix = drums * 0.9 + music * 0.9 + low * 0.85 + fx * 0.8
-    mix = hp(mix, 28)
-    # 结尾淡出
+    mix = drums * 0.9 + music * 0.95 + low * 0.8 + fx * 0.8
+    mix = hp(mix, 30)
     fade = np.ones(N)
-    a, b = int(13.8 * SR), N
-    fade[a:b] = np.linspace(1, 0, b - a) ** 1.6
+    a = int(17.0 * SR)
+    fade[a:] = np.linspace(1, 0, N - a) ** 1.6
     mix *= fade
-    # 立体声：轻微哈斯展宽（只作用于琶音/铺底）
     wide = music * 0.9
     d = int(0.012 * SR)
     left = mix + 0.15 * wide
     right = mix + 0.15 * np.concatenate([np.zeros(d), wide[:-d]])
     st = np.stack([left, right], axis=1)
-    st = np.tanh(st * 1.2) / np.tanh(1.2)       # 软削波
-    st *= 0.89 / np.max(np.abs(st))              # 峰值约 -1 dBFS
+    st = np.tanh(st * 1.2) / np.tanh(1.2)
+    st *= 0.89 / np.max(np.abs(st))
     return st
 
 
