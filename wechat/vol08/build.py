@@ -609,7 +609,7 @@ TOOL_JS = """<script>
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ref", default="main", help="图片所在的 git 提交或分支（用于 CDN 地址）")
+    ap.add_argument("--ref", default="0f0fb78beb0afad70e992a1c4d38f1d6039066dc", help="图片所在的 git 提交或分支（用于 CDN 地址）")
     args = ap.parse_args()
     bases = [
         {"name": "jsDelivr CDN（推荐）", "url": f"https://cdn.jsdelivr.net/gh/{REPO}@{args.ref}/{IMG_PATH}"},
