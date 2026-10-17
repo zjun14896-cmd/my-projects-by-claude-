@@ -202,20 +202,100 @@ def module(svg, top=26):
 
 
 # ── 模块 ─────────────────────────────────────────────────
-def hero_numeral():
-    """「08」先以黄色描边画出，再填成白色。打开文章时播放一次。"""
-    return (svg_open(300, 140, "margin-top:26px;pointer-events:none;")
-            + '<text x="150" y="132" font-size="160" font-weight="700" letter-spacing="-6" text-anchor="middle" '
-              f'fill="#FFFFFF" fill-opacity="1" stroke="{YELLOW}" stroke-width="1.2" stroke-opacity="0" '
-              'stroke-dasharray="560" stroke-dashoffset="0">08'
-              '<set attributeName="fill-opacity" to="0" begin="0s"/>'
-              '<set attributeName="stroke-opacity" to="1" begin="0s"/>'
-              '<set attributeName="stroke-dashoffset" to="560" begin="0s"/>'
-              '<animate attributeName="stroke-dashoffset" values="560;0" dur="1.8s" begin="0.2s" fill="freeze" '
-              'calcMode="spline" keyTimes="0;1" keySplines="0.45 0 0.25 1"/>'
-              '<animate attributeName="fill-opacity" values="0;1" dur="0.8s" begin="1.6s" fill="freeze"/>'
-              '<animate attributeName="stroke-opacity" values="1;0" dur="0.6s" begin="2.2s" fill="freeze"/>'
-              '</text></svg>')
+TT_PINK, TT_CYAN, TT_INK = "#FF2D78", "#25F4EE", "#0D0B26"   # TikTok 风格的粉 / 青 / 近黑
+
+
+def glitch(begin, a, b):
+    """故障抖动：大部分时间停在 (a)，偶尔离散跳几下。返回 animateTransform。"""
+    ax, ay = a
+    bx, by = b
+    vals = f"{ax} {ay};{ax} {ay};{bx} {by};{ax - bx} {ay + by};{ax} {ay};{ax} {ay}"
+    return (f'<animateTransform attributeName="transform" type="translate" values="{vals}" '
+            f'keyTimes="0;0.82;0.86;0.9;0.94;1" calcMode="discrete" dur="3.2s" begin="{begin}" repeatCount="indefinite"/>')
+
+
+def hero_stage():
+    """开头卡片的动画舞台：渐变砖墙、旋转的粉青光晕、玻璃圆、带故障错位的音符和标题、扩散波纹、上升光点。
+    全部是自动循环的展示动画，没有点击；SMIL 被过滤时画面静止但完整。"""
+    W, H, cx, cy, R = 343, 340, 171.5, 170, 140
+    out = svg_open(W, H)
+    # 漂移的柔光
+    # 柔光始终留在舞台范围内，避免被边缘切出直边
+    out += (f'<circle cx="86" cy="118" r="74" fill="{TT_PINK}" opacity="0.24">'
+            '<animate attributeName="cx" values="86;116;86" dur="7s" repeatCount="indefinite"/>'
+            '<animate attributeName="cy" values="118;148;118" dur="9s" repeatCount="indefinite"/></circle>'
+            f'<circle cx="236" cy="226" r="80" fill="{TT_CYAN}" opacity="0.3">'
+            '<animate attributeName="cx" values="236;206;236" dur="8s" repeatCount="indefinite"/>'
+            '<animate attributeName="cy" values="226;200;226" dur="6.5s" repeatCount="indefinite"/></circle>')
+    # 砖墙：灰缝 + 高光，上下两端渐隐
+    bw, bh = 72, 24
+    for row, y in enumerate(range(0, H, bh)):
+        edge = min(y / 60, (H - y) / 60, 1.0)
+        op = round(0.16 * max(edge, 0.25), 3)
+        out += (f'<rect x="0" y="{y}" width="{W}" height="1.2" fill="#2A1F8F" opacity="{op}"/>'
+                f'<rect x="0" y="{y + 1.4}" width="{W}" height="1" fill="#FFFFFF" opacity="{round(op * 0.6, 3)}"/>')
+        off = 0 if row % 2 == 0 else bw / 2
+        x = off
+        while x < W:
+            out += f'<rect x="{x}" y="{y}" width="1.2" height="{bh}" fill="#2A1F8F" opacity="{op}"/>'
+            x += bw
+    # 向外扩散的波纹
+    for i, col in enumerate((TT_PINK, TT_CYAN)):
+        out += (f'<circle cx="{cx}" cy="{cy}" r="{R}" fill="none" stroke="{col}" stroke-width="2" opacity="0">'
+                f'<animate attributeName="r" values="{R};{R + 34}" dur="3s" begin="{1.5 * i}s" repeatCount="indefinite"/>'
+                f'<animate attributeName="opacity" values="0.6;0" dur="3s" begin="{1.5 * i}s" repeatCount="indefinite"/></circle>')
+    # 粉 / 青光晕：偏心的发光圆环绕中心反向旋转，光晕方向一直在变
+    def halo(col, dx, dy, dur, rev):
+        rings = "".join(f'<circle cx="{cx + dx}" cy="{cy + dy}" r="{R}" fill="none" stroke="{col}" '
+                        f'stroke-width="{w}" opacity="{o}"/>' for w, o in ((22, 0.07), (12, 0.13), (6, 0.25), (2.2, 0.75)))
+        a, b = (360, 0) if rev else (0, 360)
+        return (f'<g><animateTransform attributeName="transform" type="rotate" values="{a} {cx} {cy};{b} {cx} {cy}" '
+                f'dur="{dur}s" repeatCount="indefinite"/>{rings}</g>')
+    out += halo(TT_PINK, -6, 6, 9, False) + halo(TT_CYAN, 6, -6, 11, True)
+    # 玻璃圆（轻微呼吸）
+    out += (f'<circle cx="{cx}" cy="{cy}" r="{R - 2}" fill="#FFFFFF" opacity="0.4">'
+            '<animate attributeName="opacity" values="0.36;0.46;0.36" dur="4s" repeatCount="indefinite"/></circle>'
+            f'<circle cx="{cx}" cy="{cy}" r="{R - 12}" fill="none" stroke="#FFFFFF" stroke-width="1" opacity="0.35"/>')
+    # 沿圆环追逐的光
+    circ = round(2 * 3.14159 * R, 1)
+    for col, length, dur, rev in (("#FFFFFF", 70, 4, False), (TT_PINK, 26, 5.5, True)):
+        a, b = (360, 0) if rev else (0, 360)
+        out += (f'<g><animateTransform attributeName="transform" type="rotate" values="{a} {cx} {cy};{b} {cx} {cy}" '
+                f'dur="{dur}s" repeatCount="indefinite"/>'
+                f'<circle cx="{cx}" cy="{cy}" r="{R}" fill="none" stroke="{col}" stroke-width="3" stroke-linecap="round" '
+                f'stroke-dasharray="{length} {circ - length}" opacity="0.95"/></g>')
+    # TikTok 风格音符：青 / 粉错位 + 近黑主体，整体上下浮动，偶尔故障抖动
+    note = ('<path d="M181.5 72 V130 A18 18 0 1 1 163.5 112" fill="none" stroke="{c}" stroke-width="11" '
+            'stroke-linecap="round" stroke-linejoin="round"/>'
+            '<path d="M181.5 74 Q185.5 94 207.5 97" fill="none" stroke="{c}" stroke-width="11" stroke-linecap="round"/>')
+    out += ('<g><animateTransform attributeName="transform" type="translate" values="0 0;0 -5;0 0" dur="2.4s" '
+            'calcMode="spline" keyTimes="0;0.5;1" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" repeatCount="indefinite"/>'
+            f'<g transform="translate(-3 -2.5)">{glitch("0s", (-3, -2.5), (-8, -1))}{note.format(c=TT_CYAN)}</g>'
+            f'<g transform="translate(3 2.5)">{glitch("0s", (3, 2.5), (8, 1))}{note.format(c=TT_PINK)}</g>'
+            f'{note.format(c=TT_INK)}</g>')
+    # 标题：放在圆心，粉青错位，偶尔故障
+    title = "五天，把路走通。"
+    tt = lambda col, extra="": (f'<text x="{cx}" y="213" font-size="31" font-weight="800" fill="{col}" '
+                                f'text-anchor="middle" letter-spacing="1"{extra}>{title}</text>')
+    out += (f'<g transform="translate(-1.6 -1)">{glitch("1.3s", (-1.6, -1), (-6, 0))}{tt(TT_CYAN)}</g>'
+            f'<g transform="translate(1.6 1)">{glitch("1.3s", (1.6, 1), (6, 0))}{tt(TT_PINK)}</g>'
+            + tt(TT_INK)
+            + t(cx, 246, "TikTok 跨境电商 · 线下实操课回顾", 11.5, "#1A1446", 600, "middle", 1.2, ' opacity="0.78"'))
+    # 上升的光点与音符
+    for i, (x, r, dur, col) in enumerate([(18, 2.2, 5.0, "#FFFFFF"), (36, 1.6, 6.2, TT_CYAN), (322, 2.4, 5.6, "#FFFFFF"),
+                                          (306, 1.5, 4.6, TT_PINK), (62, 1.4, 7.0, "#FFFFFF"), (282, 1.8, 6.6, TT_CYAN),
+                                          (10, 1.4, 5.4, TT_PINK), (334, 1.6, 7.4, "#FFFFFF")]):
+        out += (f'<circle cx="{x}" cy="{H}" r="{r}" fill="{col}" opacity="0">'
+                f'<animate attributeName="cy" values="{H};10" dur="{dur}s" begin="{0.6 * i}s" repeatCount="indefinite"/>'
+                f'<animate attributeName="cx" values="{x};{x + 8};{x - 6};{x}" dur="{dur}s" begin="{0.6 * i}s" repeatCount="indefinite"/>'
+                f'<animate attributeName="opacity" values="0;0.95;0.9;0" keyTimes="0;0.15;0.75;1" dur="{dur}s" '
+                f'begin="{0.6 * i}s" repeatCount="indefinite"/></circle>')
+    for i, (x, dur, ch) in enumerate([(26, 6.4, "♪"), (316, 7.2, "♫"), (50, 8.0, "♫")]):
+        out += (f'<text x="{x}" y="{H}" font-size="15" fill="#FFFFFF" text-anchor="middle" opacity="0">{ch}'
+                f'<animate attributeName="y" values="{H};20" dur="{dur}s" begin="{1.1 * i + 0.4}s" repeatCount="indefinite"/>'
+                f'<animate attributeName="opacity" values="0;0.85;0.8;0" keyTimes="0;0.15;0.7;1" dur="{dur}s" '
+                f'begin="{1.1 * i + 0.4}s" repeatCount="indefinite"/></text>')
+    return out + "</svg>"
 
 
 def glow_panel(svg, bg, top=26, radius=22):
@@ -383,10 +463,10 @@ def after_timeline():
 VIDEO = "{{VIDEO}}"
 VIDEO_FILE = "vol08-18s-1080p.mp4"
 # 粘贴进公众号的占位框（在开头深色卡片里）：光标放进框里，用编辑器的「视频」插入短片，再删掉这个框
-VIDEO_PASTE = (f'<section style="margin-top:12px;border:1.5px dashed rgba(255,255,255,0.4);border-radius:14px;'
-               f'background-color:rgba(255,255,255,0.06);padding:52px 16px;text-align:center;">'
-               + f'<p style="margin:0;font-size:16px;line-height:1.6;color:#FFFFFF;font-weight:700;text-align:center;">在此处插入视频</p>'
-               + f'<p style="margin:8px 0 0;font-size:12px;line-height:1.7;color:#A3AABB;text-align:center;">'
+VIDEO_PASTE = (f'<section style="margin-top:12px;border:1.5px dashed rgba(13,11,38,0.35);border-radius:14px;'
+               f'background-color:rgba(255,255,255,0.28);padding:52px 16px;text-align:center;">'
+               + f'<p style="margin:0;font-size:16px;line-height:1.6;color:#0D0B26;font-weight:700;text-align:center;">在此处插入视频</p>'
+               + f'<p style="margin:8px 0 0;font-size:12px;line-height:1.7;color:#2A2F55;text-align:center;">'
                  f'编辑器工具栏「视频」→ 上传 {VIDEO_FILE}<br>插入后删除本框</p></section>')
 # 本地预览：用短片里的一帧做封面示意
 VIDEO_PREVIEW = ('<div style="position:relative;margin-top:12px;border-radius:14px;overflow:hidden;line-height:0;">'
@@ -401,25 +481,24 @@ VIDEO_PREVIEW = ('<div style="position:relative;margin-top:12px;border-radius:14
 
 def video_slot():
     """开头卡片里的短片位。"""
-    return ('<section style="margin-top:26px;">'
-            + p("▶&nbsp; 18 秒，看看这五天", f"font-size:12px;line-height:1.4;color:{NIGHT_TEXT};letter-spacing:2px;text-align:center;")
+    return ('<section style="margin-top:10px;padding:0 14px;">'
+            + p("▶&nbsp; 18 秒，看看这五天", "font-size:12px;line-height:1.4;color:#0D0B26;font-weight:600;letter-spacing:2px;text-align:center;")
             + VIDEO + "</section>")
 
 
 # ── 正文 ─────────────────────────────────────────────────
 def article():
     # 全文居中。长段落手动断成长短均匀的短行（每行约 17 字以内），避免单字落行。
-    hero = (f'<section style="border-radius:28px;overflow:hidden;background-color:{NIGHT};'
-            'background-image:radial-gradient(90% 55% at 50% 30%,rgba(0,60,172,0.6) 0%,rgba(0,60,172,0) 70%);'
-            'padding:30px 22px 22px;text-align:center;">'
-            f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:92px;height:auto;margin:0 auto;">'
-            + hero_numeral()
-            + p("2026.10.12 — 10.16", f"margin-top:8px;font-size:12px;line-height:1.4;color:{YELLOW};"
-                                      "font-weight:600;letter-spacing:3px;text-align:center;")
-            + p("五天，把路走通。", "margin-top:14px;font-size:32px;line-height:1.3;color:#FFFFFF;"
-                                  "font-weight:700;letter-spacing:1px;text-align:center;")
-            + p("TikTok 跨境电商 · 第 8 期线下实操课回顾",
-                f"margin-top:10px;font-size:13px;line-height:1.6;color:{NIGHT_TEXT};letter-spacing:1px;text-align:center;")
+    # 开头卡片：紫 → 青渐变（参考 TikTok 霓虹砖墙），标题当主角，期数是 logo 下的小胶囊
+    hero = ('<section style="border-radius:28px;overflow:hidden;background-color:#6A5CFF;'
+            'background-image:linear-gradient(180deg,#9B3BFF 0%,#7254FF 30%,#4C8BFF 62%,#2FD3F0 86%,#2BE8E6 100%);'
+            'padding:26px 0 18px;text-align:center;">'
+            f'<img src="{IMG}logo-white.png" alt="云拓会" style="display:block;width:96px;height:auto;margin:0 auto;">'
+            + p('<span style="display:inline-block;padding:6px 14px;border-radius:999px;'
+                'background-color:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.55);'
+                'color:#FFFFFF;font-size:12px;line-height:1.2;font-weight:600;letter-spacing:1.5px;">'
+                '第 8 期 · 2026.10.12—10.16</span>', "margin-top:14px;line-height:1;text-align:center;")
+            + '<section style="margin-top:6px;line-height:0;font-size:0;">' + hero_stage() + "</section>"
             + video_slot()
             + "</section>")
 
