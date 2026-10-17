@@ -102,19 +102,81 @@ def chapter(*parts, top=88):
     return f'<section style="margin-top:{top}px;">{"".join(parts)}</section>'
 
 
-def rows(items):
-    """细线分隔的居中列表。items: [(小标签, 正文)]；正文为空时标签与文字同行显示。"""
-    out = ""
-    for i, (lab, txt) in enumerate(items):
-        bb = f"border-bottom:1px solid {LINE};" if i == len(items) - 1 else ""
-        out += f'<section style="padding:15px 0;border-top:1px solid {LINE};{bb}text-align:center;">'
-        if txt:
-            out += (p(lab, f"font-size:12px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:2px;text-align:center;")
-                    + p(txt, f"margin-top:6px;font-size:15px;line-height:1.8;color:{BODY};letter-spacing:0.2px;text-align:center;"))
-        else:
-            out += p(lab, f"font-size:16px;line-height:1.6;color:{INK};font-weight:500;text-align:center;")
-        out += "</section>"
-    return out
+TINT = "#F4F7FD"   # 插画卡片的浅蓝底
+
+
+def icon(body, size=52, block=False):
+    """小插画：白色圆底 + 品牌蓝黄线条，带一点轻微的循环动效。"""
+    disp = "display:block;margin:0 auto;" if block else "display:inline-block;vertical-align:middle;"
+    return (f'<svg {SVG_NS} viewBox="0 0 52 52" width="{size}" height="{size}" '
+            f'style="{disp}width:{size}px;height:{size}px;">'
+            f'<circle cx="26" cy="26" r="26" fill="#FFFFFF"/>{body}</svg>')
+
+
+def persona_tile(ic, label, text, top=10):
+    """左边插画、右边文字的浅蓝小卡片（卡片内部左对齐）。"""
+    return (f'<section style="margin-top:{top}px;padding:16px 14px;border-radius:18px;background-color:{TINT};'
+            'font-size:0;line-height:0;">'
+            f'<section style="display:inline-block;width:21%;vertical-align:middle;text-align:left;">{icon(ic)}</section>'
+            '<section style="display:inline-block;width:79%;vertical-align:middle;text-align:left;">'
+            + p(label, f"font-size:13px;line-height:1.4;color:{BLUE};font-weight:700;letter-spacing:2px;text-align:left;")
+            + p(text, f"margin-top:4px;font-size:15px;line-height:1.7;color:{BODY};letter-spacing:0.2px;text-align:left;")
+            + "</section></section>")
+
+
+def step_cell(ic, n, lines, last=False):
+    """三列小卡片：插画、编号、两行短句。"""
+    mr = "0" if last else "2.75%"
+    return (f'<section style="display:inline-block;width:31.5%;margin-right:{mr};vertical-align:top;'
+            f'padding:16px 4px 14px;box-sizing:border-box;border-radius:16px;background-color:{TINT};text-align:center;">'
+            + icon(ic, 50, block=True)
+            + p(f"0{n}", f"margin-top:8px;font-size:12px;line-height:1;color:{BLUE};font-weight:700;letter-spacing:1px;text-align:center;")
+            + p("<br>".join(lines), f"margin-top:6px;font-size:14px;line-height:1.6;color:{INK};font-weight:500;text-align:center;")
+            + "</section>")
+
+
+# 六个小插画（52×52）
+IC_SEED = ('<path d="M17 35 H35 L32.5 44 H19.5 Z" fill="#003CAC"/>'
+           '<g><animateTransform attributeName="transform" type="rotate" values="-6 26 35;6 26 35;-6 26 35" dur="3.2s" repeatCount="indefinite"/>'
+           '<path d="M26 35 V21" stroke="#003CAC" stroke-width="2.4" stroke-linecap="round" fill="none"/>'
+           '<path d="M26 27 C19 27 15.5 22.5 15.5 17 C22 17 26 21 26 27 Z" fill="#FFC833"/>'
+           '<path d="M26 23 C33 23 36.5 18.5 36.5 13 C30 13 26 17 26 23 Z" fill="#2F6BFF"/></g>')
+IC_SHOP = ('<rect x="15" y="21" width="22" height="19" rx="2" fill="#FFFFFF" stroke="#003CAC" stroke-width="2.2"/>'
+           '<rect x="22" y="29" width="8" height="11" rx="1.5" fill="#003CAC"/>'
+           '<path d="M13 14 H39 V20 A3.25 3.25 0 0 1 32.5 20 A3.25 3.25 0 0 1 26 20 A3.25 3.25 0 0 1 19.5 20 '
+           'A3.25 3.25 0 0 1 13 20 Z" fill="#FFC833"/>'
+           '<rect x="19.5" y="14" width="6.5" height="6" fill="#2F6BFF"/><rect x="32.5" y="14" width="6.5" height="6" fill="#2F6BFF"/>'
+           '<g><animateTransform attributeName="transform" type="translate" values="0 0;0 -2.5;0 0" dur="1.8s" repeatCount="indefinite"/>'
+           '<circle cx="39" cy="12" r="6" fill="#003CAC"/>'
+           '<text x="39" y="15.2" font-size="9" font-weight="700" fill="#FFFFFF" text-anchor="middle">?</text></g>')
+IC_FACTORY = ('<path d="M11 41 V27 L18 31 V27 L25 31 V27 L32 31 V17 H38 V41 Z" fill="#003CAC"/>'
+              '<rect x="14" y="34" width="4" height="4" rx="1" fill="#FFC833"/>'
+              '<rect x="21" y="34" width="4" height="4" rx="1" fill="#FFC833"/>'
+              '<rect x="28" y="34" width="4" height="4" rx="1" fill="#FFC833"/>'
+              '<circle cx="35" cy="14" r="3" fill="#7CC4FF" opacity="0.8">'
+              '<animate attributeName="cy" values="14;5" dur="2.2s" repeatCount="indefinite"/>'
+              '<animate attributeName="r" values="2.5;4.5" dur="2.2s" repeatCount="indefinite"/>'
+              '<animate attributeName="opacity" values="0.8;0" dur="2.2s" repeatCount="indefinite"/></circle>'
+              '<circle cx="35" cy="14" r="3" fill="#7CC4FF" opacity="0.8">'
+              '<animate attributeName="cy" values="14;5" dur="2.2s" begin="1.1s" repeatCount="indefinite"/>'
+              '<animate attributeName="r" values="2.5;4.5" dur="2.2s" begin="1.1s" repeatCount="indefinite"/>'
+              '<animate attributeName="opacity" values="0.8;0" dur="2.2s" begin="1.1s" repeatCount="indefinite"/></circle>')
+IC_GEAR = ('<g><animateTransform attributeName="transform" type="rotate" values="0 21 28;360 21 28" dur="8s" repeatCount="indefinite"/>'
+           '<circle cx="21" cy="28" r="9.5" fill="none" stroke="#003CAC" stroke-width="5" stroke-dasharray="3.7 3.75"/>'
+           '<circle cx="21" cy="28" r="7.5" fill="#003CAC"/><circle cx="21" cy="28" r="2.8" fill="#FFFFFF"/></g>'
+           '<g><animateTransform attributeName="transform" type="rotate" values="0 35 17;-360 35 17" dur="5.3s" repeatCount="indefinite"/>'
+           '<circle cx="35" cy="17" r="6" fill="none" stroke="#FFC833" stroke-width="4" stroke-dasharray="2.9 3.4"/>'
+           '<circle cx="35" cy="17" r="4.6" fill="#FFC833"/><circle cx="35" cy="17" r="1.8" fill="#FFFFFF"/></g>')
+IC_STEPS = ('<path d="M11 40 H19 V33 H27 V26 H35 V19 H42" fill="none" stroke="#003CAC" stroke-width="3" '
+            'stroke-linecap="round" stroke-linejoin="round"/>'
+            '<circle cx="0" cy="0" r="3.6" fill="#FFC833">'
+            '<animateMotion path="M15 36 Q19 29 23 29 Q27 22 31 22 Q35 15 39 15 L39 15" dur="2.4s" repeatCount="indefinite"/></circle>')
+IC_LINK = ('<g><animateTransform attributeName="transform" type="translate" values="-2 0;0 0;0 0;-2 0" keyTimes="0;0.35;0.75;1" dur="2.4s" repeatCount="indefinite"/>'
+           '<rect x="9" y="20" width="20" height="12" rx="6" fill="none" stroke="#003CAC" stroke-width="3.4"/></g>'
+           '<g><animateTransform attributeName="transform" type="translate" values="2 0;0 0;0 0;2 0" keyTimes="0;0.35;0.75;1" dur="2.4s" repeatCount="indefinite"/>'
+           '<rect x="23" y="20" width="20" height="12" rx="6" fill="none" stroke="#FFC833" stroke-width="3.4"/></g>'
+           '<circle cx="26" cy="26" r="2" fill="#2F6BFF" opacity="0"><animate attributeName="opacity" '
+           'values="0;0;1;0" keyTimes="0;0.35;0.45;1" dur="2.4s" repeatCount="indefinite"/></circle>')
 
 
 # ── SMIL 片段 ────────────────────────────────────────────
@@ -320,14 +382,14 @@ def after_timeline():
 # ── 视频位 ───────────────────────────────────────────────
 VIDEO = "{{VIDEO}}"
 VIDEO_FILE = "vol08-18s-1080p.mp4"
-# 粘贴进公众号的占位框：光标放进框里，用编辑器的「视频」插入短片，再删掉这个框
-VIDEO_PASTE = (f'<section style="margin-top:14px;border:1.5px dashed #9DB4E8;border-radius:16px;'
-               f'background-color:#F3F6FD;padding:46px 16px;text-align:center;">'
-               + f'<p style="margin:0;font-size:16px;line-height:1.6;color:#111318;font-weight:700;text-align:center;">在此处插入视频</p>'
-               + f'<p style="margin:8px 0 0;font-size:12px;line-height:1.7;color:#8B909A;text-align:center;">'
+# 粘贴进公众号的占位框（在开头深色卡片里）：光标放进框里，用编辑器的「视频」插入短片，再删掉这个框
+VIDEO_PASTE = (f'<section style="margin-top:12px;border:1.5px dashed rgba(255,255,255,0.4);border-radius:14px;'
+               f'background-color:rgba(255,255,255,0.06);padding:52px 16px;text-align:center;">'
+               + f'<p style="margin:0;font-size:16px;line-height:1.6;color:#FFFFFF;font-weight:700;text-align:center;">在此处插入视频</p>'
+               + f'<p style="margin:8px 0 0;font-size:12px;line-height:1.7;color:#A3AABB;text-align:center;">'
                  f'编辑器工具栏「视频」→ 上传 {VIDEO_FILE}<br>插入后删除本框</p></section>')
 # 本地预览：用短片里的一帧做封面示意
-VIDEO_PREVIEW = ('<div style="position:relative;margin-top:14px;border-radius:16px;overflow:hidden;line-height:0;">'
+VIDEO_PREVIEW = ('<div style="position:relative;margin-top:12px;border-radius:14px;overflow:hidden;line-height:0;">'
                  '<img src="img/video-poster.jpg" alt="第 8 期短片" style="display:block;width:100%;height:auto;">'
                  '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;'
                  'background:rgba(5,10,24,.18);"><div style="width:58px;height:58px;border-radius:50%;'
@@ -338,9 +400,10 @@ VIDEO_PREVIEW = ('<div style="position:relative;margin-top:14px;border-radius:16
 
 
 def video_slot():
-    return ('<section style="margin-top:34px;">'
-            + p("18 秒，看看这五天", f"font-size:12px;line-height:1.4;color:{BLUE};font-weight:600;letter-spacing:3px;text-align:center;")
-            + VIDEO + caption("第 8 期线下实操课 · 现场短片") + "</section>")
+    """开头卡片里的短片位。"""
+    return ('<section style="margin-top:26px;">'
+            + p("▶&nbsp; 18 秒，看看这五天", f"font-size:12px;line-height:1.4;color:{NIGHT_TEXT};letter-spacing:2px;text-align:center;")
+            + VIDEO + "</section>")
 
 
 # ── 正文 ─────────────────────────────────────────────────
@@ -357,23 +420,22 @@ def article():
                                   "font-weight:700;letter-spacing:1px;text-align:center;")
             + p("TikTok 跨境电商 · 第 8 期线下实操课回顾",
                 f"margin-top:10px;font-size:13px;line-height:1.6;color:{NIGHT_TEXT};letter-spacing:1px;text-align:center;")
-            + photo("00-hero.jpg", "第 8 期课堂，老师在写满的白板前讲解", top=26, radius=14)
+            + video_slot()
             + "</section>")
 
     intro = chapter(
         p("10 月 12 日到 16 日，<br>第 8 期线下实操课结束了。",
           f"font-size:20px;line-height:1.7;color:{INK};font-weight:700;letter-spacing:0.5px;text-align:center;"),
         center("这期来的同学，情况各不相同。", top=20),
-        f'<section style="margin-top:18px;">' + rows([
-            ("从零开始", "有人之前没接触过跨境电商，<br>想从零开始了解；"),
-            ("已经开店", "有人店已经开了一段时间，<br>但一直没有起色；"),
-            ("工厂 · 品牌方", "也有工厂和品牌方，带着自家产品过来，<br>希望团队能尽快把 TikTok 这条路跑通。"),
-        ]) + "</section>",
+        '<section style="margin-top:18px;">'
+        + persona_tile(IC_SEED, "从零开始", "有人之前没接触过跨境电商，<br>想从零开始了解；", top=0)
+        + persona_tile(IC_SHOP, "已经开店", "有人店已经开了一段时间，<br>但一直没有起色；")
+        + persona_tile(IC_FACTORY, "工厂 · 品牌方", "也有工厂和品牌方，<br>带着自家产品过来，希望团队<br>能尽快把 TikTok 这条路跑通。")
+        + "</section>",
         center("大家来的原因不一样，", "但遇到的问题很相似：", top=26),
         p(f"网上的东西看了不少，<br>真要自己动手，<br>{mark('还是不知道该怎么做。')}",
           f"margin-top:14px;font-size:21px;line-height:1.7;color:{INK};font-weight:700;letter-spacing:0.5px;text-align:center;"),
         center("这五天，我们就从这里开始。", top=18),
-        video_slot(),
         top=44)
 
     ch1 = chapter(
@@ -382,11 +444,11 @@ def article():
         body("网上的内容很多，但大多是零散的。", "今天看一个选品技巧，", "明天看一个上架教程，",
              "始终串不成一条完整的路。", top=24),
         answer("所以课上没有急着讲技巧，", "而是把整件事从头到尾梳理一遍："),
-        f'<section style="margin-top:14px;">' + rows([
-            (f'<span style="color:{BLUE};font-size:13px;font-weight:600;margin-right:10px;">01</span>这门生意是怎么运转的', ""),
-            (f'<span style="color:{BLUE};font-size:13px;font-weight:600;margin-right:10px;">02</span>每一步在做什么', ""),
-            (f'<span style="color:{BLUE};font-size:13px;font-weight:600;margin-right:10px;">03</span>前后怎么衔接', ""),
-        ]) + "</section>",
+        '<section style="margin-top:18px;font-size:0;line-height:0;">'
+        + step_cell(IC_GEAR, 1, ["这门生意", "是怎么运转的"])
+        + step_cell(IC_STEPS, 2, ["每一步", "在做什么"])
+        + step_cell(IC_LINK, 3, ["前后", "怎么衔接"], last=True)
+        + "</section>",
         center("讲解过程中随时可以提问，", "有不清楚的地方当场讲明白再往下走。", top=20))
 
     ch2 = chapter(
